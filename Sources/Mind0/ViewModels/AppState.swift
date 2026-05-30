@@ -33,6 +33,7 @@ class AppState: ObservableObject {
     @Published var isPresenting: Bool = false
     @Published var presentationIndex: Int = 0
     @Published var childrenShowAll: Set<UUID> = []
+    @Published var sidebarFocusNodeID: UUID?
     var presentationOrder: [(UUID, MindNode)] = []
 
     var presentationHighlightNodeID: UUID? {

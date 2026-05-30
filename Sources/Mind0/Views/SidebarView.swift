@@ -5,8 +5,11 @@ struct SidebarView: View {
     @State private var docToDelete: MindDocument?
 
     var body: some View {
-        List(selection: $appState.currentDocumentID) {
-            Section("Documents") {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                sectionHeader("Documents")
+                    .padding(.horizontal, 8)
+
                 ForEach(appState.documents) { doc in
                     HStack(spacing: 8) {
                         Image(systemName: "doc.text")
@@ -31,29 +34,29 @@ struct SidebarView: View {
                         .opacity(doc.id == appState.currentDocumentID ? 0.6 : 0)
                     }
                     .padding(.vertical, 3)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 8)
                     .contentShape(Rectangle())
+                    .background(doc.id == appState.currentDocumentID ? Color.accentColor.opacity(0.1) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
                     .contextMenu {
                         Button("Delete", role: .destructive) { docToDelete = doc }
                     }
-                    .tag(doc.id)
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        docToDelete = appState.documents[index]
+                    .onTapGesture {
+                        appState.currentDocumentID = doc.id
                     }
                 }
-            }
 
-            if let doc = appState.currentDocument {
-                Section("Nodes") {
+                if let doc = appState.currentDocument {
+                    sectionHeader("Nodes")
+                        .padding(.horizontal, 8)
+                        .padding(.top, 8)
+
                     NodeTreeView(nodeID: doc.rootNodeID, depth: 0)
                         .environmentObject(appState)
                 }
             }
+            .padding(.vertical, 8)
         }
-        .listStyle(.sidebar)
-        .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
         .toolbar {
             ToolbarItem {
                 Button(action: { appState.showNewDocAlert = true }) {
@@ -80,6 +83,15 @@ struct SidebarView: View {
         } message: { doc in
             Text("Are you sure you want to delete \"\(doc.title)\"? This action cannot be undone.")
         }
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.secondary)
+            .textCase(.uppercase)
+            .padding(.vertical, 4)
     }
 }
 
@@ -183,6 +195,10 @@ struct NodeTreeView: View {
             }
             .onTapGesture {
                 appState.selectedNodeIDs = [nodeID]
+            }
+            .onTapGesture(count: 2) {
+                appState.selectedNodeIDs = [nodeID]
+                appState.sidebarFocusNodeID = nodeID
             }
             .contextMenu {
                 Button("Add Child") { appState.addChild(to: nodeID) }

@@ -17,14 +17,20 @@ struct CanvasView: View {
                 }
 
                 if let doc = appState.currentDocument {
+                    let effectiveShowAll: Set<UUID> = {
+                        if appState.isPresenting {
+                            return Set(doc.nodes.filter { $0.value.childrenIDs.count > 5 }.map { $0.key })
+                        }
+                        return appState.childrenShowAll
+                    }()
                     ZStack {
-                        ConnectionLinesView(doc: doc, lineStyle: doc.lineStyle, highlightedNodeID: appState.presentationHighlightNodeID, showAll: appState.childrenShowAll)
-                        ForEach(doc.flattenedNodes(showAll: appState.childrenShowAll), id: \.0) { (id, node) in
+                        ConnectionLinesView(doc: doc, lineStyle: doc.lineStyle, highlightedNodeID: appState.presentationHighlightNodeID, showAll: effectiveShowAll)
+                        ForEach(doc.flattenedNodes(showAll: effectiveShowAll), id: \.0) { (id, node) in
                             NodeCardView(nodeID: id)
                                 .environmentObject(appState)
                                 .position(node.position)
                         }
-                        ForEach(doc.showMoreButtonData(showAll: appState.childrenShowAll)) { info in
+                        ForEach(doc.showMoreButtonData(showAll: effectiveShowAll)) { info in
                             showMoreButton(info: info)
                         }
                     }
@@ -87,6 +93,18 @@ struct CanvasView: View {
             .onChange(of: appState.isPresenting) { _, newValue in
                 if newValue {
                     focusOnCurrentPresentationNode(geometry: geometry)
+                }
+            }
+            .onChange(of: appState.sidebarFocusNodeID) { _, newValue in
+                if let nodeID = newValue, let node = appState.currentDocument?.nodes[nodeID] {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        appState.canvasScale = 1.0
+                        appState.canvasOffset = CGSize(
+                            width: geometry.size.width / 2 - node.position.x,
+                            height: geometry.size.height / 2 - node.position.y
+                        )
+                    }
+                    appState.sidebarFocusNodeID = nil
                 }
             }
         }
