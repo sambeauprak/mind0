@@ -6,6 +6,7 @@ struct MindDocument: Identifiable, Codable {
     var nodes: [UUID: MindNode]
     var rootNodeID: UUID
     var layoutType: LayoutType
+    var lineStyle: LineStyle
     var canvasOffset: CGSize
     var canvasScale: CGFloat
     var createdAt: Date
@@ -17,6 +18,7 @@ struct MindDocument: Identifiable, Codable {
         nodes: [UUID: MindNode] = [:],
         rootNodeID: UUID = UUID(),
         layoutType: LayoutType = .radial,
+        lineStyle: LineStyle = .curved,
         canvasOffset: CGSize = .zero,
         canvasScale: CGFloat = 1.0
     ) {
@@ -25,6 +27,7 @@ struct MindDocument: Identifiable, Codable {
         self.nodes = nodes
         self.rootNodeID = rootNodeID
         self.layoutType = layoutType
+        self.lineStyle = lineStyle
         self.canvasOffset = canvasOffset
         self.canvasScale = canvasScale
         self.createdAt = Date()
@@ -47,12 +50,12 @@ struct MindDocument: Identifiable, Codable {
 
     func flattenedNodes() -> [(UUID, MindNode)] {
         var result: [(UUID, MindNode)] = []
-        func traverse(_ id: UUID, depth: Int = 0) {
+        func traverse(_ id: UUID) {
             guard let node = nodes[id] else { return }
             result.append((id, node))
             if !node.isCollapsed {
                 for childID in node.childrenIDs {
-                    traverse(childID, depth: depth + 1)
+                    traverse(childID)
                 }
             }
         }
@@ -90,42 +93,6 @@ struct MindDocument: Identifiable, Codable {
         doc.nodes[root.id]?.childrenIDs = [child1.id, child2.id]
         return doc
     }
-
-    private static let documentsURL: URL = {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let url = paths[0].appendingPathComponent("Mind0")
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }()
-
-    static func loadAll() -> [MindDocument] {
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: documentsURL,
-            includingPropertiesForKeys: nil
-        ) else { return [] }
-        return files
-            .filter { $0.pathExtension == "mind0" }
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url),
-                      let doc = try? JSONDecoder().decode(MindDocument.self, from: data)
-                else { return nil }
-                return doc
-            }
-            .sorted { $0.updatedAt > $1.updatedAt }
-    }
-
-    func save() {
-        let url = Self.documentsURL.appendingPathComponent("\(title).mind0")
-        var newDoc = self
-        newDoc.updatedAt = Date()
-        guard let newData = try? JSONEncoder().encode(newDoc) else { return }
-        try? newData.write(to: url)
-    }
-
-    func delete() {
-        let url = Self.documentsURL.appendingPathComponent("\(title).mind0")
-        try? FileManager.default.removeItem(at: url)
-    }
 }
 
 enum LayoutType: String, Codable, CaseIterable {
@@ -136,6 +103,18 @@ enum LayoutType: String, Codable, CaseIterable {
         switch self {
         case .radial: "Radial (Center)"
         case .tree: "Tree (Left)"
+        }
+    }
+}
+
+enum LineStyle: String, Codable, CaseIterable {
+    case curved
+    case orthogonal
+
+    var displayName: String {
+        switch self {
+        case .curved: "Curved"
+        case .orthogonal: "Rounded Orthogonal"
         }
     }
 }

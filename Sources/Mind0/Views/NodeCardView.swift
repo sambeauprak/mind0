@@ -6,7 +6,6 @@ struct NodeCardView: View {
     @State private var isHovered: Bool = false
     @State private var showColorPicker: Bool = false
     @State private var editText: String = ""
-    @State private var dragStartPos: CGPoint = .zero
     @State private var isEditingLocally: Bool = false
 
     private let cardWidth: CGFloat = 180
@@ -29,55 +28,41 @@ struct NodeCardView: View {
             .background(
                 shapeView(node: node)
                     .fill(node.backgroundColorSwift)
-                    .shadow(color: .black.opacity(isHovered ? 0.2 : 0.1), radius: isHovered ? 6 : 3, y: isHovered ? 3 : 1)
+                    .shadow(color: .black.opacity(isHovered ? 0.18 : 0.08), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
             )
             .overlay(
                 shapeView(node: node)
-                    .stroke(appState.selectedNodeIDs.contains(nodeID) ? Color.accentColor : Color.clear, lineWidth: 2.5)
+                    .stroke(appState.selectedNodeIDs.contains(nodeID) ? Color.accentColor : Color.gray.opacity(0.2), lineWidth: appState.selectedNodeIDs.contains(nodeID) ? 2.5 : 1)
+            )
+            .overlay(
+                shapeView(node: node)
+                    .stroke(appState.presentationHighlightNodeID == nodeID ? Color.accentColor.opacity(0.8) : Color.clear, lineWidth: appState.presentationHighlightNodeID == nodeID ? 4 : 0)
+                    .shadow(color: appState.presentationHighlightNodeID == nodeID ? Color.accentColor.opacity(0.5) : .clear, radius: 8)
             )
             .clipShape(shapeView(node: node))
             .overlay(alignment: .topTrailing) {
                 if isHovered, nodeID != appState.currentDocument?.rootNodeID {
                     collapseButton(node: node)
+                        .padding(4)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if isHovered {
-                    addButton
-                        .offset(x: -4, y: -4)
-                }
+                colorDot
+                    .padding(4)
             }
             .overlay(alignment: .topLeading) {
                 if isHovered {
                     HStack(spacing: 2) {
-                        colorButton
                         editButton
+                        imageButton
+                        addButton
                     }
-                    .offset(x: 4, y: 4)
+                    .padding(4)
                 }
             }
             .onHover { hovering in
                 isHovered = hovering
             }
-            .gesture(
-                DragGesture(minimumDistance: 2)
-                    .onChanged { value in
-                        if appState.draggingNodeID != nodeID {
-                            appState.draggingNodeID = nodeID
-                            dragStartPos = node.position
-                        }
-                        let translation = value.translation
-                        let newPos = CGPoint(
-                            x: dragStartPos.x + translation.width / appState.canvasScale,
-                            y: dragStartPos.y + translation.height / appState.canvasScale
-                        )
-                        appState.updateNodePosition(nodeID, position: newPos)
-                    }
-                    .onEnded { _ in
-                        appState.draggingNodeID = nil
-                        appState.saveCurrentDocument()
-                    }
-            )
             .simultaneousGesture(
                 TapGesture(count: 2)
                     .onEnded {
@@ -106,6 +91,8 @@ struct NodeCardView: View {
                     appState.editingNodeID = nil
                 }
             }
+            .opacity(appState.isPresenting && appState.presentationHighlightNodeID != nodeID ? 0.25 : 1.0)
+            .zIndex(appState.isPresenting && appState.presentationHighlightNodeID == nodeID ? 10 : 0)
         }
     }
 
@@ -116,6 +103,7 @@ struct NodeCardView: View {
 
     @ViewBuilder
     private func standardContent(node: MindNode) -> some View {
+        let textColor = textColorForBackground(node.backgroundColorSwift)
         VStack(spacing: 2) {
             if let img = loadedImage, !node.imageCoverMode {
                 Image(nsImage: img)
@@ -123,21 +111,33 @@ struct NodeCardView: View {
                     .scaledToFill()
                     .frame(width: cardWidth - 8, height: 48)
                     .clipped()
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
                     .onTapGesture {
                         appState.previewImage = img
                         appState.showImagePreview = true
                     }
+                    .padding(.top, 4)
             }
 
             Text(node.title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color(hex: appState.currentTheme.nodeTextColor) ?? .primary)
+                .foregroundColor(textColor)
                 .lineLimit(3)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .padding(.vertical, loadedImage == nil ? 12 : 4)
         }
         .frame(maxWidth: cardWidth, maxHeight: cardHeight)
+    }
+
+    private func textColorForBackground(_ color: Color) -> Color {
+        guard let nsColor = NSColor(color).usingColorSpace(.sRGB) else {
+            return .primary
+        }
+        let r = nsColor.redComponent
+        let g = nsColor.greenComponent
+        let b = nsColor.blueComponent
+        let luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return luminance > 0.6 ? Color(white: 0.2) : .white
     }
 
     @ViewBuilder
@@ -159,7 +159,7 @@ struct NodeCardView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.white)
                 .lineLimit(2)
-                .padding(8)
+                .padding(10)
         }
         .onTapGesture {
             appState.previewImage = img
@@ -184,8 +184,8 @@ struct NodeCardView: View {
         Button(action: { appState.toggleCollapse(nodeID) }) {
             Image(systemName: node.isCollapsed ? "chevron.right.circle.fill" : "chevron.down.circle.fill")
                 .foregroundColor(.white)
-                .background(Circle().fill(Color.black.opacity(0.4)))
-                .font(.system(size: 14))
+                .background(Circle().fill(Color.black.opacity(0.35)))
+                .font(.system(size: 13))
         }
         .buttonStyle(.plain)
         .help(node.isCollapsed ? "Expand" : "Collapse")
@@ -195,20 +195,20 @@ struct NodeCardView: View {
         Button(action: { appState.addChild(to: nodeID) }) {
             Image(systemName: "plus.circle.fill")
                 .foregroundColor(.green)
-                .background(Circle().fill(Color.white))
-                .font(.system(size: 16))
+                .background(Circle().fill(Color.white.opacity(0.9)))
+                .font(.system(size: 15))
         }
         .buttonStyle(.plain)
         .help("Add Child")
     }
 
-    private var colorButton: some View {
+    private var colorDot: some View {
         Button(action: { showColorPicker.toggle() }) {
-            Image(systemName: "paintbrush.fill")
-                .foregroundColor(node?.backgroundColorSwift ?? .white)
-                .font(.system(size: 11))
-                .padding(3)
-                .background(Circle().fill(.ultraThinMaterial))
+            Circle()
+                .fill(node?.backgroundColorSwift ?? .white)
+                .frame(width: 14, height: 14)
+                .overlay(Circle().stroke(Color.secondary.opacity(0.4), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.15), radius: 2)
         }
         .buttonStyle(.plain)
         .help("Change Color")
@@ -221,12 +221,25 @@ struct NodeCardView: View {
             isEditingLocally = true
         }) {
             Image(systemName: "pencil")
-                .font(.system(size: 11))
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
                 .padding(3)
                 .background(Circle().fill(.ultraThinMaterial))
         }
         .buttonStyle(.plain)
         .help("Edit Title")
+    }
+
+    private var imageButton: some View {
+        Button(action: { pickImage() }) {
+            Image(systemName: "photo")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .padding(3)
+                .background(Circle().fill(.ultraThinMaterial))
+        }
+        .buttonStyle(.plain)
+        .help("Add Image")
     }
 
     private var editSheet: some View {
@@ -251,6 +264,7 @@ struct NodeCardView: View {
                     saveEdit()
                 }
                 .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding(24)
@@ -263,6 +277,20 @@ struct NodeCardView: View {
             appState.updateNodeTitle(nodeID, title: trimmed)
         }
         isEditingLocally = false
+    }
+
+    private func pickImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            if let image = NSImage(contentsOf: url) {
+                appState.setNodeImage(nodeID, image: image)
+            }
+        }
     }
 }
 

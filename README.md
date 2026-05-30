@@ -11,7 +11,7 @@ A native macOS mindmapping application built with **SwiftUI**. Create, arrange, 
 
 ### Canvas
 - **Figma-like navigation** — drag to pan, `⌘` + scroll to zoom
-- **Free node placement** — drag any node anywhere on the canvas
+- **Fixed node positions** — nodes are arranged by auto-layout algorithms
 - **Curved bezier connections** — smooth lines between parent and child nodes
 - **Auto-layout** — one-click Radial (center) and Tree (left-to-right columns) layouts
 
@@ -55,6 +55,9 @@ A native macOS mindmapping application built with **SwiftUI**. Create, arrange, 
 ## Architecture
 
 ```
+scripts/
+└── build-dmg.sh            # Release DMG packaging script
+
 Sources/Mind0/
 ├── Mind0App.swift           # @main entry point + menu commands
 ├── Models/
@@ -67,7 +70,7 @@ Sources/Mind0/
 ├── Views/
 │   ├── ContentView.swift     # HSplitView layout + toolbar overlay
 │   ├── CanvasView.swift     # Pan/zoom canvas with ConnectionLinesView
-│   ├── NodeCardView.swift    # Draggable stylable node card
+│   ├── NodeCardView.swift    # Stylable node card with image support
 │   ├── SidebarView.swift    # Document list + collapsible node tree
 │   ├── ColorPickerView.swift # Color swatches + custom picker
 │   ├── ImagePreviewView.swift # Full-screen zoombox overlay
@@ -117,6 +120,14 @@ swift package clean  # Clean build artifacts
 ```
 
 The first build will download no dependencies — Mind0 uses only Apple SDK frameworks.
+
+### Building a Release DMG
+
+```bash
+./scripts/build-dmg.sh
+```
+
+This produces `Mind0.dmg` at the project root — a compressed disk image containing `Mind0.app` with a bundled `Info.plist` and all resources. It builds in release mode, signs the app ad-hoc, and uses `hdiutil` for DMG creation.
 
 ---
 

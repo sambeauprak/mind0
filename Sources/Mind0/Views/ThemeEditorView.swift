@@ -6,28 +6,30 @@ struct ThemeEditorView: View {
     @State private var selectedThemeID: UUID?
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Theme Editor")
-                .font(.title2)
-                .fontWeight(.semibold)
+        VStack(spacing: 0) {
+            HStack {
+                Text("Themes")
+                    .font(.headline)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.escape)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
 
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 12)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
                     ForEach(Theme.presets) { theme in
                         themeCard(theme)
                     }
                 }
-                .padding()
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
-
-            HStack {
-                Button("Close") { dismiss() }
-                    .keyboardShortcut(.escape)
-            }
-            .padding(.bottom)
         }
-        .padding()
-        .frame(width: 520, height: 460)
+        .frame(width: 520, height: 480)
     }
 
     private func themeCard(_ theme: Theme) -> some View {
@@ -35,10 +37,10 @@ struct ThemeEditorView: View {
             HStack {
                 Circle()
                     .fill(Color(hex: theme.lineColor) ?? .blue)
-                    .frame(width: 14, height: 14)
+                    .frame(width: 12, height: 12)
 
                 Text(theme.name)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
 
                 Spacer()
 
@@ -58,7 +60,7 @@ struct ThemeEditorView: View {
 
             HStack(spacing: 6) {
                 if theme.imageCoverMode {
-                    Label("Image Cover", systemImage: "photo.fill")
+                    Label("Cover", systemImage: "photo.fill")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -68,11 +70,11 @@ struct ThemeEditorView: View {
             }
         }
         .padding(12)
-        .background(Color(hex: theme.canvasBackgroundColor) ?? Color(white: 0.95))
-        .cornerRadius(10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(appState.currentTheme.id == theme.id ? Color.accentColor : Color.clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(appState.currentTheme.id == theme.id ? Color.accentColor : Color.gray.opacity(0.3), lineWidth: appState.currentTheme.id == theme.id ? 2 : 1)
         )
         .onTapGesture {
             appState.applyTheme(theme)
@@ -85,24 +87,24 @@ struct ThemeEditorView: View {
             case .roundedRect:
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color(hex: color) ?? .white)
-                    .frame(width: 30, height: 18)
+                    .frame(width: 28, height: 16)
             case .ellipse:
                 Ellipse()
                     .fill(Color(hex: color) ?? .white)
-                    .frame(width: 30, height: 18)
+                    .frame(width: 28, height: 16)
             case .capsule:
                 Capsule()
                     .fill(Color(hex: color) ?? .white)
-                    .frame(width: 30, height: 18)
+                    .frame(width: 28, height: 16)
             case .rectangle:
                 Rectangle()
                     .fill(Color(hex: color) ?? .white)
-                    .frame(width: 30, height: 18)
+                    .frame(width: 28, height: 16)
             }
         }
         .overlay(
             Rectangle()
-                .stroke(Color(hex: color)?.opacity(0.3) ?? Color.gray.opacity(0.3), lineWidth: 1)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
         )
     }
 }

@@ -2,47 +2,45 @@ import SwiftUI
 
 struct SidebarView: View {
     @EnvironmentObject var appState: AppState
+    @State private var docToDelete: MindDocument?
 
     var body: some View {
-        List {
+        List(selection: $appState.currentDocumentID) {
             Section("Documents") {
                 ForEach(appState.documents) { doc in
-                    HStack {
+                    HStack(spacing: 8) {
                         Image(systemName: "doc.text")
                             .foregroundColor(.accentColor)
+                            .font(.system(size: 11))
 
                         Text(doc.title)
-                            .font(.system(size: 13, weight: doc.id == appState.currentDocumentID ? .semibold : .regular))
+                            .font(.system(size: 12, weight: doc.id == appState.currentDocumentID ? .semibold : .regular))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Spacer()
-
-                        if doc.id != appState.currentDocumentID {
-                            Button(action: { appState.deleteDocument(doc.id) }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                                    .font(.system(size: 12))
-                            }
-                            .buttonStyle(.plain)
+                        Button(action: { docToDelete = doc }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .frame(width: 16, height: 16)
+                                .background(Color(nsColor: .quaternaryLabelColor).opacity(0.3))
+                                .clipShape(Circle())
                         }
+                        .buttonStyle(.plain)
+                        .opacity(doc.id == appState.currentDocumentID ? 0.6 : 0)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 4)
                     .contentShape(Rectangle())
-                    .onTapGesture {
-                        if var currentDoc = appState.currentDocument {
-                            currentDoc.canvasScale = appState.canvasScale
-                            currentDoc.canvasOffset = appState.canvasOffset
-                            appState.currentDocument = currentDoc
-                            currentDoc.save()
-                        }
-                        appState.currentDocumentID = doc.id
-                        appState.canvasScale = doc.canvasScale
-                        appState.canvasOffset = doc.canvasOffset
-                        appState.selectedNodeIDs = []
+                    .contextMenu {
+                        Button("Delete", role: .destructive) { docToDelete = doc }
                     }
+                    .tag(doc.id)
                 }
                 .onDelete { indexSet in
                     for index in indexSet {
-                        appState.deleteDocument(appState.documents[index].id)
+                        docToDelete = appState.documents[index]
                     }
                 }
             }
@@ -55,13 +53,32 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
         .toolbar {
             ToolbarItem {
-                Button(action: { appState.newDocument() }) {
+                Button(action: { appState.showNewDocAlert = true }) {
                     Image(systemName: "plus")
                 }
                 .help("New Document")
             }
+        }
+        .confirmationDialog(
+            "Delete Document",
+            isPresented: Binding(
+                get: { docToDelete != nil },
+                set: { if !$0 { docToDelete = nil } }
+            ),
+            presenting: docToDelete
+        ) { doc in
+            Button("Delete", role: .destructive) {
+                appState.deleteDocument(doc.id)
+                docToDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                docToDelete = nil
+            }
+        } message: { doc in
+            Text("Are you sure you want to delete \"\(doc.title)\"? This action cannot be undone.")
         }
     }
 }
@@ -70,41 +87,71 @@ struct NodeTreeView: View {
     let nodeID: UUID
     let depth: Int
     @EnvironmentObject var appState: AppState
+    @State private var isHovered: Bool = false
 
     var body: some View {
         if let node = appState.currentDocument?.nodes[nodeID] {
-            HStack(spacing: 2) {
+            HStack(spacing: 4) {
                 if !node.childrenIDs.isEmpty {
                     Button(action: { appState.toggleCollapse(nodeID) }) {
                         Image(systemName: node.isCollapsed ? "chevron.right" : "chevron.down")
-                            .font(.system(size: 10))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .frame(width: 12)
+                    .frame(width: 12, height: 16)
                 } else {
                     Spacer().frame(width: 12)
                 }
 
                 Circle()
                     .fill(node.backgroundColorSwift)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 7, height: 7)
 
                 Text(node.title)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .foregroundColor(appState.selectedNodeIDs.contains(nodeID) ? .accentColor : .primary)
 
-                Spacer()
+                if isHovered {
+                    HStack(spacing: 2) {
+                        Button(action: { appState.addChild(to: nodeID) }) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Add Child")
 
-                if nodeID == appState.currentDocument?.rootNodeID {
+                        if nodeID != appState.currentDocument?.rootNodeID {
+                            Button(role: .destructive, action: { appState.deleteNode(nodeID) }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 8))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete Node")
+                        }
+                    }
+                    .foregroundColor(.secondary)
+                    .transition(.opacity)
+                }
+
+                if !isHovered, nodeID == appState.currentDocument?.rootNodeID {
                     Image(systemName: "house.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8))
                         .foregroundColor(.secondary)
+                        .help("Root Node")
                 }
             }
-            .padding(.leading, CGFloat(depth) * 14)
+            .padding(.leading, CGFloat(depth) * 12)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovered = hovering
+                }
+            }
             .onTapGesture {
                 appState.selectedNodeIDs = [nodeID]
             }

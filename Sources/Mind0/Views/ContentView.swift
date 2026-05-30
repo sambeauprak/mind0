@@ -2,29 +2,45 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @State private var newDocTitle: String = "Untitled"
 
     var body: some View {
         HSplitView {
             if appState.sidebarVisible {
                 SidebarView()
-                    .frame(minWidth: 220, idealWidth: 260, maxWidth: 400)
+                    .frame(minWidth: 200, idealWidth: 240, maxWidth: 360)
                     .layoutPriority(1)
             }
 
             CanvasView()
-                .frame(minWidth: 600)
+                .frame(minWidth: 500)
                 .layoutPriority(2)
         }
         .overlay(alignment: .topTrailing) {
-            HStack(spacing: 6) {
-                Button(action: { appState.sidebarVisible.toggle() }) {
-                    Image(systemName: "sidebar.left")
+            if !appState.isPresenting {
+                HStack(spacing: 4) {
+                Button(action: {
+                    newDocTitle = "Untitled"
+                    appState.showNewDocAlert = true
+                }) {
+                    Label("New", systemImage: "plus")
                 }
+                .labelStyle(.iconOnly)
+                .help("New Document")
+
+                Divider()
+                    .frame(height: 14)
+
+                Button(action: { appState.sidebarVisible.toggle() }) {
+                    Label("Sidebar", systemImage: "sidebar.left")
+                }
+                .labelStyle(.iconOnly)
                 .help("Toggle Sidebar")
 
                 Button(action: { appState.applyLayout() }) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Label("Layout", systemImage: "arrow.triangle.2.circlepath")
                 }
+                .labelStyle(.iconOnly)
                 .help("Auto Layout")
 
                 Picker("Layout", selection: Binding(
@@ -36,37 +52,73 @@ struct ContentView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 160)
+                .frame(width: 140)
+                .controlSize(.small)
 
                 Button(action: { appState.showThemeEditor = true }) {
-                    Image(systemName: "paintpalette")
+                    Label("Themes", systemImage: "paintpalette")
                 }
+                .labelStyle(.iconOnly)
                 .help("Themes")
 
                 Divider()
-                    .frame(height: 16)
+                    .frame(height: 14)
+
+                Picker("Line Style", selection: Binding(
+                    get: { appState.currentDocument?.lineStyle ?? .curved },
+                    set: { appState.setLineStyle($0) }
+                )) {
+                    ForEach(LineStyle.allCases, id: \.self) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 150)
+                .controlSize(.small)
+
+                Divider()
+                    .frame(height: 14)
 
                 Button(action: { appState.isExporting = true }) {
-                    Image(systemName: "square.and.arrow.up")
+                    Label("Export", systemImage: "square.and.arrow.up")
                 }
+                .labelStyle(.iconOnly)
                 .help("Export")
             }
-            .padding(8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(.ultraThinMaterial)
-            .cornerRadius(8)
-            .padding(8)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            )
+            .padding(10)
+            }
         }
         .sheet(isPresented: $appState.showThemeEditor) {
             ThemeEditorView()
+                .environmentObject(appState)
         }
         .sheet(isPresented: $appState.isExporting) {
             ExportView()
+                .environmentObject(appState)
         }
         .overlay {
             if appState.showImagePreview, let image = appState.previewImage {
                 ImagePreviewView(image: image)
                     .environmentObject(appState)
             }
+        }
+        .alert("New Document", isPresented: $appState.showNewDocAlert) {
+            TextField("Document Name", text: $newDocTitle)
+            Button("Cancel", role: .cancel) { }
+            Button("Create") {
+                let title = newDocTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                appState.newDocument(title: title.isEmpty ? "Untitled" : title)
+            }
+        } message: {
+            Text("Enter a name for the new document.")
         }
     }
 }

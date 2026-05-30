@@ -3,7 +3,22 @@ import UniformTypeIdentifiers
 
 class AppState: ObservableObject {
     @Published var documents: [MindDocument] = []
-    @Published var currentDocumentID: UUID?
+    @Published var currentDocumentID: UUID? {
+        didSet {
+            if let id = currentDocumentID {
+                UserDefaults.standard.set(id.uuidString, forKey: "activeDocumentID")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "activeDocumentID")
+            }
+            guard oldValue != currentDocumentID else { return }
+            if let oldID = oldValue, var oldDoc = documents.first(where: { $0.id == oldID }) {
+                oldDoc.canvasScale = canvasScale
+                oldDoc.canvasOffset = canvasOffset
+                documentManager.save(oldDoc)
+            }
+            centerOnRoot()
+        }
+    }
     @Published var selectedNodeIDs: Set<UUID> = []
     @Published var currentTheme: Theme = .presets[0]
     @Published var sidebarVisible: Bool = true
@@ -15,14 +30,20 @@ class AppState: ObservableObject {
     @Published var previewImage: NSImage?
     @Published var showThemeEditor: Bool = false
     @Published var loadedImages: [String: NSImage] = [:]
-    @Published var draggingNodeID: UUID?
-    var dragNodeStartPos: CGPoint = .zero
     @Published var showExportPanel: Bool = false
+    @Published var showNewDocAlert: Bool = false
+    @Published var isPresenting: Bool = false
+    @Published var presentationIndex: Int = 0
+    var presentationOrder: [(UUID, MindNode)] = []
+
+    var presentationHighlightNodeID: UUID? {
+        isPresenting && presentationIndex < presentationOrder.count ? presentationOrder[presentationIndex].0 : nil
+    }
+
+    private let documentManager = DocumentManager.shared
 
     var currentDocument: MindDocument? {
-        get {
-            documents.first(where: { $0.id == currentDocumentID })
-        }
+        get { documents.first(where: { $0.id == currentDocumentID }) }
         set {
             if let newValue = newValue {
                 if let index = documents.firstIndex(where: { $0.id == currentDocumentID }) {
@@ -37,23 +58,17 @@ class AppState: ObservableObject {
         doc.canvasScale = canvasScale
         doc.canvasOffset = canvasOffset
         currentDocument = doc
-        doc.save()
-        documents = MindDocument.loadAll()
-        if let reloaded = documents.first(where: { $0.id == doc.id }) {
-            if let idx = documents.firstIndex(where: { $0.id == doc.id }) {
-                documents[idx] = reloaded
-            }
-        }
+        documentManager.save(doc)
     }
 
-    func newDocument() {
-        let doc = MindDocument.createDefault()
+    func newDocument(title: String = "Untitled") {
+        var doc = MindDocument.createDefault()
+        doc.title = title
         documents.insert(doc, at: 0)
         currentDocumentID = doc.id
         applyLayout()
         centerOnRoot()
         saveCurrentDocument()
-        documents = MindDocument.loadAll()
     }
 
     func centerOnRoot() {
@@ -65,26 +80,82 @@ class AppState: ObservableObject {
         )
     }
 
-    func loadDocuments() {
-        documents = MindDocument.loadAll()
-        if documents.isEmpty {
-            newDocument()
-        } else {
-            let first = documents.first!
-            currentDocumentID = first.id
-            canvasScale = first.canvasScale
-            canvasOffset = first.canvasOffset
-            applyLayout()
-            saveCurrentDocument()
+    func enterPresentation() {
+        guard let doc = currentDocument else { return }
+        sidebarVisible = false
+        var order: [(UUID, MindNode)] = []
+        var queue: [UUID] = [doc.rootNodeID]
+        while !queue.isEmpty {
+            let id = queue.removeFirst()
+            guard let node = doc.nodes[id] else { continue }
+            order.append((id, node))
+            if !node.isCollapsed {
+                queue.append(contentsOf: node.childrenIDs)
+            }
         }
+        presentationOrder = order
+        presentationIndex = 0
+        isPresenting = true
+    }
+
+    func exitPresentation() {
+        isPresenting = false
+        presentationOrder = []
+        centerOnRoot()
+    }
+
+    func nextPresentationNode() {
+        guard isPresenting, !presentationOrder.isEmpty else { return }
+        presentationIndex = min(presentationIndex + 1, presentationOrder.count - 1)
+    }
+
+    func previousPresentationNode() {
+        guard isPresenting, !presentationOrder.isEmpty else { return }
+        presentationIndex = max(presentationIndex - 1, 0)
+    }
+
+    func loadDocuments() {
+        documents = documentManager.loadAll()
+
+        if let savedID = UserDefaults.standard.string(forKey: "activeDocumentID"),
+           let uuid = UUID(uuidString: savedID),
+           documents.contains(where: { $0.id == uuid }) {
+            currentDocumentID = uuid
+        }
+
+        if currentDocumentID == nil {
+            if documents.isEmpty {
+                newDocument()
+                return
+            }
+            currentDocumentID = documents.first!.id
+        }
+
+        applyLayout()
+        centerOnRoot()
     }
 
     func deleteDocument(_ id: UUID) {
         guard let doc = documents.first(where: { $0.id == id }) else { return }
-        doc.delete()
-        documents = MindDocument.loadAll()
+
+        if id == currentDocumentID {
+            saveCurrentDocument()
+        }
+
+        documentManager.delete(doc)
+        documents = documentManager.loadAll()
+
         if currentDocumentID == id {
-            currentDocumentID = documents.first?.id
+            if let next = documents.first {
+                currentDocumentID = next.id
+                canvasScale = next.canvasScale
+                canvasOffset = next.canvasOffset
+                selectedNodeIDs = []
+            } else {
+                currentDocumentID = nil
+                canvasScale = 1.0
+                canvasOffset = .zero
+            }
         }
     }
 
@@ -119,12 +190,6 @@ class AppState: ObservableObject {
         doc.nodes[nodeID]?.isCollapsed.toggle()
         currentDocument = doc
         saveCurrentDocument()
-    }
-
-    func updateNodePosition(_ nodeID: UUID, position: CGPoint) {
-        guard var doc = currentDocument else { return }
-        doc.nodes[nodeID]?.position = position
-        currentDocument = doc
     }
 
     func updateNodeTitle(_ nodeID: UUID, title: String) {
@@ -200,15 +265,20 @@ class AppState: ObservableObject {
         applyLayout()
     }
 
+    func setLineStyle(_ style: LineStyle) {
+        guard var doc = currentDocument else { return }
+        doc.lineStyle = style
+        currentDocument = doc
+        saveCurrentDocument()
+    }
+
     func applyTheme(_ theme: Theme) {
         currentTheme = theme
         guard var doc = currentDocument else { return }
         for (id, _) in doc.nodes {
             doc.nodes[id]?.shape = theme.nodeShape
             doc.nodes[id]?.lineColor = theme.lineColor
-            if id == doc.rootNodeID || theme.nodeBackgroundColor != "#FFFFFF" {
-                doc.nodes[id]?.backgroundColor = theme.nodeBackgroundColor
-            }
+            doc.nodes[id]?.backgroundColor = theme.nodeBackgroundColor
             doc.nodes[id]?.imageCoverMode = theme.imageCoverMode
         }
         currentDocument = doc
