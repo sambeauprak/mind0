@@ -25,7 +25,7 @@ struct NodeCardView: View {
                     isHovered = hovering
                 }
                 .gesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                    DragGesture(minimumDistance: 0, coordinateSpace: .global)
                         .onChanged { value in
                             if !didSaveUndoForDrag {
                                 appState.saveUndoState()
@@ -38,7 +38,7 @@ struct NodeCardView: View {
                                 x: dragStartPosition.x + delta.width / scale,
                                 y: dragStartPosition.y + delta.height / scale
                             )
-                            appState.updateNodePosition(nodeID, position: newPos)
+                            appState.setNodePosition(nodeID, position: newPos)
                         }
                         .onEnded { _ in
                             didSaveUndoForDrag = false
@@ -103,7 +103,7 @@ struct NodeCardView: View {
         .overlay(presentationStroke(node: node))
         .clipShape(shapeView(node: node))
         .overlay(alignment: .topTrailing) {
-            if isHovered, nodeID != appState.currentDocument?.rootNodeID {
+            if isHovered, !didSaveUndoForDrag, nodeID != appState.currentDocument?.rootNodeID {
                 collapseButton(node: node)
                     .padding(4)
             }
@@ -113,7 +113,7 @@ struct NodeCardView: View {
                 .padding(4)
         }
         .overlay(alignment: .topLeading) {
-            if isHovered {
+            if isHovered, !didSaveUndoForDrag {
                 HStack(spacing: 2) {
                     editButton
                     imageButton

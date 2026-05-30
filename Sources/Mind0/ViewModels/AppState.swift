@@ -20,7 +20,6 @@ class AppState: ObservableObject {
         }
     }
     @Published var selectedNodeIDs: Set<UUID> = []
-    @Published var currentTheme: Theme = .presets[0]
     @Published var sidebarVisible: Bool = true
     @Published var canvasScale: CGFloat = 1.0
     @Published var canvasOffset: CGSize = .zero
@@ -28,7 +27,6 @@ class AppState: ObservableObject {
     @Published var isExporting: Bool = false
     @Published var showImagePreview: Bool = false
     @Published var previewImage: NSImage?
-    @Published var showThemeEditor: Bool = false
     @Published var loadedImages: [String: NSImage] = [:]
     @Published var showExportPanel: Bool = false
     @Published var showNewDocAlert: Bool = false
@@ -246,9 +244,16 @@ class AppState: ObservableObject {
 
     func updateNodePosition(_ nodeID: UUID, position: CGPoint) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.position = position
         currentDocument = doc
         saveCurrentDocument()
+    }
+
+    func setNodePosition(_ nodeID: UUID, position: CGPoint) {
+        guard var doc = currentDocument else { return }
+        doc.nodes[nodeID]?.position = position
+        currentDocument = doc
     }
 
     func updateNodeColor(_ nodeID: UUID, color: String) {
@@ -328,20 +333,6 @@ class AppState: ObservableObject {
         guard var doc = currentDocument else { return }
         saveUndoState()
         doc.lineStyle = style
-        currentDocument = doc
-        saveCurrentDocument()
-    }
-
-    func applyTheme(_ theme: Theme) {
-        saveUndoState()
-        currentTheme = theme
-        guard var doc = currentDocument else { return }
-        for (id, _) in doc.nodes {
-            doc.nodes[id]?.shape = theme.nodeShape
-            doc.nodes[id]?.lineColor = theme.lineColor
-            doc.nodes[id]?.backgroundColor = theme.nodeBackgroundColor
-            doc.nodes[id]?.imageCoverMode = theme.imageCoverMode
-        }
         currentDocument = doc
         saveCurrentDocument()
     }

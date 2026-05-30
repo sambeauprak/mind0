@@ -55,12 +55,6 @@ struct ContentView: View {
                 .frame(width: 140)
                 .controlSize(.small)
 
-                Button(action: { appState.showThemeEditor = true }) {
-                    Label("Themes", systemImage: "paintpalette")
-                }
-                .labelStyle(.iconOnly)
-                .help("Themes")
-
                 Divider()
                     .frame(height: 14)
 
@@ -95,10 +89,6 @@ struct ContentView: View {
             )
             .padding(10)
             }
-        }
-        .sheet(isPresented: $appState.showThemeEditor) {
-            ThemeEditorView()
-                .environmentObject(appState)
         }
         .sheet(isPresented: $appState.isExporting) {
             ExportView()

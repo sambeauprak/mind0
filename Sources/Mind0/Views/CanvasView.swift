@@ -8,7 +8,7 @@ struct CanvasView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color(hex: appState.currentTheme.canvasBackgroundColor) ?? Color(nsColor: .windowBackgroundColor)
+                Color(nsColor: .windowBackgroundColor)
 
                 if appState.isPresenting {
                     Color.black.opacity(0.45)
@@ -17,7 +17,7 @@ struct CanvasView: View {
 
                 if let doc = appState.currentDocument {
                     ZStack {
-                        ConnectionLinesView(doc: doc, theme: appState.currentTheme, lineStyle: doc.lineStyle, highlightedNodeID: appState.presentationHighlightNodeID)
+                        ConnectionLinesView(doc: doc, lineStyle: doc.lineStyle, highlightedNodeID: appState.presentationHighlightNodeID)
                         ForEach(doc.flattenedNodes(), id: \.0) { (id, node) in
                             NodeCardView(nodeID: id)
                                 .environmentObject(appState)
@@ -255,7 +255,6 @@ struct CanvasView: View {
 
 struct ConnectionLinesView: View {
     let doc: MindDocument
-    let theme: Theme
     let lineStyle: LineStyle
     let highlightedNodeID: UUID?
 
@@ -273,9 +272,7 @@ struct ConnectionLinesView: View {
             return parent.childrenIDs.compactMap { childID in
                 guard visibleIDs.contains(parentID), visibleIDs.contains(childID) else { return nil }
                 guard let child = doc.nodes[childID] else { return nil }
-                let color = Color(hex: parent.lineColor)
-                    ?? Color(hex: theme.lineColor)
-                    ?? .blue
+                let color = Color(hex: parent.lineColor) ?? .blue
                 let isHighlighted = highlightedNodeID == parentID || highlightedNodeID == childID
                 return Connection(
                     id: "\(parentID.uuidString)-\(childID.uuidString)",
