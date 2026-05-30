@@ -13,9 +13,10 @@ struct CanvasView: View {
                 if let doc = appState.currentDocument {
                     ZStack {
                         ConnectionLinesView(doc: doc, theme: appState.currentTheme)
-                        ForEach(doc.flattenedNodes(), id: \.0) { (id, _) in
+                        ForEach(doc.flattenedNodes(), id: \.0) { (id, node) in
                             NodeCardView(nodeID: id)
                                 .environmentObject(appState)
+                                .position(node.position)
                         }
                     }
                     .scaleEffect(appState.canvasScale, anchor: .topLeading)
