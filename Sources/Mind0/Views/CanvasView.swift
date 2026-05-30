@@ -157,17 +157,35 @@ struct ConnectionLinesView: View {
     let doc: MindDocument
     let theme: Theme
 
+    struct Connection: Identifiable {
+        let id: String
+        let from: CGPoint
+        let to: CGPoint
+        let color: Color
+    }
+
+    var connections: [Connection] {
+        doc.nodes.flatMap { parentID, parent in
+            guard !parent.isCollapsed else { return [Connection]() }
+            return parent.childrenIDs.compactMap { childID in
+                guard let child = doc.nodes[childID] else { return nil }
+                let color = Color(hex: parent.lineColor)
+                    ?? Color(hex: theme.lineColor)
+                    ?? .blue
+                return Connection(
+                    id: "\(parentID.uuidString)-\(childID.uuidString)",
+                    from: parent.position,
+                    to: child.position,
+                    color: color
+                )
+            }
+        }
+    }
+
     var body: some View {
         ZStack {
-            ForEach(Array(doc.nodes.keys), id: \.self) { parentID in
-                if let parent = doc.nodes[parentID], !parent.isCollapsed {
-                    ForEach(parent.childrenIDs, id: \.self) { childID in
-                        if let child = doc.nodes[childID] {
-                            let lineColor = Color(hex: parent.lineColor) ?? Color(hex: theme.lineColor) ?? .blue
-                            ConnectionPath(from: parent.position, to: child.position, color: lineColor)
-                        }
-                    }
-                }
+            ForEach(connections) { conn in
+                ConnectionPath(from: conn.from, to: conn.to, color: conn.color)
             }
         }
     }

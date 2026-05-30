@@ -52,7 +52,7 @@ class AppState: ObservableObject {
         currentDocumentID = doc.id
         applyLayout()
         centerOnRoot()
-        doc.save()
+        saveCurrentDocument()
         documents = MindDocument.loadAll()
     }
 
@@ -74,7 +74,15 @@ class AppState: ObservableObject {
             currentDocumentID = first.id
             canvasScale = first.canvasScale
             canvasOffset = first.canvasOffset
+            if isDocumentStale(first) {
+                applyLayout()
+            }
         }
+    }
+
+    private func isDocumentStale(_ doc: MindDocument) -> Bool {
+        guard let root = doc.nodes[doc.rootNodeID] else { return false }
+        return root.position == .zero || root.position == CGPoint(x: 60, y: 150)
     }
 
     func deleteDocument(_ id: UUID) {
@@ -92,8 +100,8 @@ class AppState: ObservableObject {
         doc.nodes[child.id] = child
         doc.nodes[parentID]?.childrenIDs.append(child.id)
         currentDocument = doc
-        saveCurrentDocument()
         applyLayout()
+        saveCurrentDocument()
     }
 
     func deleteNode(_ nodeID: UUID) {
