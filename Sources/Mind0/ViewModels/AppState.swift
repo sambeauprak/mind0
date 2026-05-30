@@ -74,15 +74,9 @@ class AppState: ObservableObject {
             currentDocumentID = first.id
             canvasScale = first.canvasScale
             canvasOffset = first.canvasOffset
-            if isDocumentStale(first) {
-                applyLayout()
-            }
+            applyLayout()
+            saveCurrentDocument()
         }
-    }
-
-    private func isDocumentStale(_ doc: MindDocument) -> Bool {
-        guard let root = doc.nodes[doc.rootNodeID] else { return false }
-        return root.position == .zero || root.position == CGPoint(x: 60, y: 150)
     }
 
     func deleteDocument(_ id: UUID) {
