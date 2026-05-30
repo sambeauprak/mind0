@@ -63,18 +63,29 @@ struct MindDocument: Identifiable, Codable {
     static func createDefault() -> MindDocument {
         let root = MindNode(
             title: "Central Idea",
-            position: CGPoint(x: 400, y: 400),
+            position: CGPoint(x: 60, y: 150),
             isRoot: true
         )
-        let child1 = MindNode(title: "Branch 1", position: CGPoint(x: 600, y: 300))
-        let child2 = MindNode(title: "Branch 2", position: CGPoint(x: 600, y: 500))
+        let child1 = MindNode(
+            title: "Branch 1",
+            position: CGPoint(x: 340, y: 90),
+            backgroundColor: "#B5E2FA",
+            shape: .roundedRect
+        )
+        let child2 = MindNode(
+            title: "Branch 2",
+            position: CGPoint(x: 340, y: 210),
+            backgroundColor: "#CAFFBF",
+            shape: .roundedRect
+        )
         var doc = MindDocument(
             nodes: [
                 root.id: root,
                 child1.id: child1,
                 child2.id: child2
             ],
-            rootNodeID: root.id
+            rootNodeID: root.id,
+            layoutType: .tree
         )
         doc.nodes[root.id]?.childrenIDs = [child1.id, child2.id]
         return doc

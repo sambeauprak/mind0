@@ -33,18 +33,36 @@ class AppState: ObservableObject {
     }
 
     func saveCurrentDocument() {
-        currentDocument?.save()
+        guard var doc = currentDocument else { return }
+        doc.canvasScale = canvasScale
+        doc.canvasOffset = canvasOffset
+        currentDocument = doc
+        doc.save()
         documents = MindDocument.loadAll()
+        if let reloaded = documents.first(where: { $0.id == doc.id }) {
+            if let idx = documents.firstIndex(where: { $0.id == doc.id }) {
+                documents[idx] = reloaded
+            }
+        }
     }
 
     func newDocument() {
         let doc = MindDocument.createDefault()
         documents.insert(doc, at: 0)
         currentDocumentID = doc.id
-        canvasScale = 1.0
-        canvasOffset = .zero
+        applyLayout()
+        centerOnRoot()
         doc.save()
         documents = MindDocument.loadAll()
+    }
+
+    func centerOnRoot() {
+        guard let doc = currentDocument, let root = doc.nodes[doc.rootNodeID] else { return }
+        canvasScale = 1.0
+        canvasOffset = CGSize(
+            width: 60 - root.position.x,
+            height: 40 - root.position.y
+        )
     }
 
     func loadDocuments() {
@@ -52,7 +70,10 @@ class AppState: ObservableObject {
         if documents.isEmpty {
             newDocument()
         } else {
-            currentDocumentID = documents.first?.id
+            let first = documents.first!
+            currentDocumentID = first.id
+            canvasScale = first.canvasScale
+            canvasOffset = first.canvasOffset
         }
     }
 

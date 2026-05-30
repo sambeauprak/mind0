@@ -5,9 +5,9 @@ struct NodeCardView: View {
     @EnvironmentObject var appState: AppState
     @State private var isHovered: Bool = false
     @State private var showColorPicker: Bool = false
-    @State private var isEditing: Bool = false
     @State private var editText: String = ""
     @State private var dragStartPos: CGPoint = .zero
+    @State private var isEditingLocally: Bool = false
 
     private let cardWidth: CGFloat = 180
     private let cardHeight: CGFloat = 80
@@ -49,8 +49,11 @@ struct NodeCardView: View {
             }
             .overlay(alignment: .topLeading) {
                 if isHovered {
-                    colorButton
-                        .offset(x: 4, y: 4)
+                    HStack(spacing: 2) {
+                        colorButton
+                        editButton
+                    }
+                    .offset(x: 4, y: 4)
                 }
             }
             .onHover { hovering in
@@ -75,23 +78,33 @@ struct NodeCardView: View {
                         appState.saveCurrentDocument()
                     }
             )
+            .simultaneousGesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        editText = node.title
+                        isEditingLocally = true
+                    }
+            )
             .onTapGesture {
                 appState.selectedNodeIDs = [nodeID]
-            }
-            .onTapGesture(count: 2) {
-                editText = node.title
-                isEditing = true
             }
             .contextMenu {
                 NodeContextMenu(nodeID: nodeID)
                     .environmentObject(appState)
             }
-            .sheet(isPresented: $isEditing) {
-                editSheet
-            }
             .popover(isPresented: $showColorPicker) {
                 ColorPickerView(nodeID: nodeID, node: node)
                     .environmentObject(appState)
+            }
+            .sheet(isPresented: $isEditingLocally) {
+                editSheet
+            }
+            .onChange(of: appState.editingNodeID) { _, newID in
+                if newID == nodeID {
+                    editText = node.title
+                    isEditingLocally = true
+                    appState.editingNodeID = nil
+                }
             }
         }
     }
@@ -193,7 +206,7 @@ struct NodeCardView: View {
         Button(action: { showColorPicker.toggle() }) {
             Image(systemName: "paintbrush.fill")
                 .foregroundColor(node?.backgroundColorSwift ?? .white)
-                .font(.system(size: 12))
+                .font(.system(size: 11))
                 .padding(3)
                 .background(Circle().fill(.ultraThinMaterial))
         }
@@ -201,28 +214,55 @@ struct NodeCardView: View {
         .help("Change Color")
     }
 
+    private var editButton: some View {
+        Button(action: {
+            guard let n = node else { return }
+            editText = n.title
+            isEditingLocally = true
+        }) {
+            Image(systemName: "pencil")
+                .font(.system(size: 11))
+                .padding(3)
+                .background(Circle().fill(.ultraThinMaterial))
+        }
+        .buttonStyle(.plain)
+        .help("Edit Title")
+    }
+
     private var editSheet: some View {
         VStack(spacing: 16) {
-            Text("Edit Node")
+            Text("Edit Node Title")
                 .font(.headline)
 
             TextField("Title", text: $editText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 250)
+                .onSubmit {
+                    saveEdit()
+                }
 
             HStack {
-                Button("Cancel") { isEditing = false }
-                    .keyboardShortcut(.escape)
+                Button("Cancel") {
+                    isEditingLocally = false
+                }
+                .keyboardShortcut(.escape)
 
                 Button("Save") {
-                    appState.updateNodeTitle(nodeID, title: editText)
-                    isEditing = false
+                    saveEdit()
                 }
                 .keyboardShortcut(.return)
             }
         }
         .padding(24)
         .frame(width: 320)
+    }
+
+    private func saveEdit() {
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            appState.updateNodeTitle(nodeID, title: trimmed)
+        }
+        isEditingLocally = false
     }
 }
 
@@ -236,10 +276,14 @@ struct NodeContextMenu: View {
 
     var body: some View {
         Group {
-            Button("Add Child") { appState.addChild(to: nodeID) }
+            Button("Add Child Node") { appState.addChild(to: nodeID) }
                 .keyboardShortcut("n")
 
-            Button("Edit Title") { appState.editingNodeID = nodeID }
+            Button("Edit Title") {
+                if appState.currentDocument?.nodes[nodeID] != nil {
+                    appState.editingNodeID = nodeID
+                }
+            }
 
             Divider()
 
@@ -262,12 +306,16 @@ struct NodeContextMenu: View {
     }
 
     private func addImage() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
-        panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        if let image = NSImage(contentsOf: url) {
-            appState.setNodeImage(nodeID, image: image)
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = [.image]
+            panel.allowsMultipleSelection = false
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            if let image = NSImage(contentsOf: url) {
+                appState.setNodeImage(nodeID, image: image)
+            }
         }
     }
 }

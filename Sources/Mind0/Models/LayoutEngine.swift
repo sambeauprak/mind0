@@ -1,10 +1,10 @@
 import Foundation
 
 struct LayoutEngine {
-    let nodeSize = CGSize(width: 180, height: 80)
-    let horizontalSpacing: CGFloat = 120
-    let verticalSpacing: CGFloat = 60
-    let radialRadius: CGFloat = 180
+    let nodeSize = CGSize(width: 180, height: 60)
+    let horizontalSpacing: CGFloat = 100
+    let verticalSpacing: CGFloat = 24
+    let radialRadius: CGFloat = 160
 
     func applyRadialLayout(to document: inout MindDocument) {
         guard let root = document.nodes[document.rootNodeID] else { return }
@@ -46,70 +46,65 @@ struct LayoutEngine {
     }
 
     func applyTreeLayout(to document: inout MindDocument) {
-        guard document.nodes[document.rootNodeID] != nil else { return }
+        guard let root = document.nodes[document.rootNodeID] else { return }
 
-        func calcHeight(_ nodeID: UUID) -> CGFloat {
+        let rootX: CGFloat = 60
+
+        func calcSubtreeHeight(_ nodeID: UUID) -> CGFloat {
             guard let node = document.nodes[nodeID] else { return 0 }
             if node.isCollapsed || node.childrenIDs.isEmpty {
                 return nodeSize.height
             }
-            let childHeights = node.childrenIDs.map { calcHeight($0) }
+            let childHeights = node.childrenIDs.map { calcSubtreeHeight($0) }
             let totalChild = childHeights.reduce(0, +)
             let spacing = CGFloat(node.childrenIDs.count - 1) * verticalSpacing
             return max(nodeSize.height, totalChild + spacing)
         }
 
-        func positionNode(_ nodeID: UUID, x: CGFloat, yRange: (min: CGFloat, max: CGFloat)) {
-            guard let node = document.nodes[nodeID] else { return }
+        func layoutSubtree(_ nodeID: UUID, x: CGFloat, topY: CGFloat) -> CGFloat {
+            guard let node = document.nodes[nodeID] else { return topY }
 
-            let nodeY = (yRange.min + yRange.max) / 2
+            let subtreeH = calcSubtreeHeight(nodeID)
+            let nodeY = topY + subtreeH / 2
             document.nodes[nodeID]?.position = CGPoint(x: x, y: nodeY)
 
-            if !node.isCollapsed {
-                let children = node.childrenIDs
-                let totalChildren = children.count
-                let availableHeight = yRange.max - yRange.min - verticalSpacing * CGFloat(totalChildren - 1)
-                let childHeight = max(nodeSize.height, availableHeight / CGFloat(totalChildren))
-                var currentY = yRange.min
+            if !node.isCollapsed, !node.childrenIDs.isEmpty {
+                let childX = x + horizontalSpacing + nodeSize.width
+                var childTopY = topY
 
-                for childID in children {
-                    let childH = calcHeight(childID)
-                    let childYRange = (
-                        min: currentY,
-                        max: currentY + max(childH, childHeight)
-                    )
-                    positionNode(
-                        childID,
-                        x: x + horizontalSpacing + nodeSize.width,
-                        yRange: childYRange
-                    )
-                    currentY += max(childH, childHeight) + verticalSpacing
+                for childID in node.childrenIDs {
+                    childTopY = layoutSubtree(childID, x: childX, topY: childTopY)
+                    childTopY += calcSubtreeHeight(childID) + verticalSpacing
                 }
             }
+
+            return topY
         }
 
-        let totalHeight = calcHeight(document.rootNodeID)
-        document.nodes[document.rootNodeID]?.position = CGPoint(x: 60, y: totalHeight / 2)
+        // Position root
+        let totalH = calcSubtreeHeight(root.id)
+        document.nodes[root.id]?.position = CGPoint(x: rootX, y: totalH / 2)
 
-        let rootPos = document.nodes[document.rootNodeID]?.position ?? .zero
-        let children = document.nodes[document.rootNodeID]?.childrenIDs ?? []
+        // Position children in a block starting at topY=0
+        if !root.isCollapsed, !root.childrenIDs.isEmpty {
+            let childX = rootX + horizontalSpacing + nodeSize.width
+            var childTopY: CGFloat = 0
 
-        var currentChildY: CGFloat = 0
-        for childID in children {
-            let h = calcHeight(childID)
-            let childX = rootPos.x + horizontalSpacing + nodeSize.width
-            positionNode(
-                childID,
-                x: childX,
-                yRange: (min: currentChildY, max: currentChildY + h)
-            )
-            currentChildY += h + verticalSpacing
-        }
+            // First pass: lay out all children sequentially from topY = 0
+            for childID in root.childrenIDs {
+                childTopY = layoutSubtree(childID, x: childX, topY: childTopY)
+                childTopY += calcSubtreeHeight(childID) + verticalSpacing
+            }
 
-        for childID in children {
-            let childH = calcHeight(childID)
-            let childMidY = (document.nodes[childID]?.position.y ?? 0) + childH / 2
-            offsetTree(childID, offset: rootPos.y - childMidY, document: &document)
+            // Second pass: compute the total children block height and center it on the root
+            let allChildrenH = root.childrenIDs.reduce(0) { $0 + calcSubtreeHeight($1) }
+                + CGFloat(root.childrenIDs.count - 1) * verticalSpacing
+            let blockOffset = (totalH - allChildrenH) / 2
+
+            // Apply block offset to all children recursively
+            for childID in root.childrenIDs {
+                offsetTree(childID, offset: blockOffset, document: &document)
+            }
         }
     }
 
