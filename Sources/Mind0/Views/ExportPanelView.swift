@@ -31,7 +31,7 @@ struct ExportView: View {
                 exportButton(
                     icon: "doc.text",
                     title: "Export as Markdown",
-                    subtitle: "Each node = 1 .md file"
+                    subtitle: "Single file with tree structure"
                 ) {
                     appState.exportAsMarkdown()
                     dismiss()

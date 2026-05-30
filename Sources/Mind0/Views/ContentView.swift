@@ -73,6 +73,12 @@ struct ContentView: View {
                 Divider()
                     .frame(height: 14)
 
+                Button(action: { appState.importAsMarkdown() }) {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
+                .labelStyle(.iconOnly)
+                .help("Import Markdown")
+
                 Button(action: { appState.isExporting = true }) {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }

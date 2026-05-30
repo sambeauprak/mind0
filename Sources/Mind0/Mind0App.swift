@@ -73,6 +73,13 @@ struct Mind0App: App {
                     appState.exportAsMarkdown()
                 }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Import Markdown...") {
+                    appState.importAsMarkdown()
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
             }
         }
     }

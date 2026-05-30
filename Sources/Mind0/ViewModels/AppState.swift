@@ -263,12 +263,17 @@ class AppState: ObservableObject {
         } else {
             childrenShowAll.insert(nodeID)
         }
+        applyLayout()
     }
 
     func toggleCollapse(_ nodeID: UUID) {
         guard var doc = currentDocument else { return }
         saveUndoState()
+        let wasCollapsed = doc.nodes[nodeID]?.isCollapsed ?? false
         doc.nodes[nodeID]?.isCollapsed.toggle()
+        if wasCollapsed {
+            childrenShowAll.remove(nodeID)
+        }
         currentDocument = doc
         saveCurrentDocument()
     }
@@ -352,9 +357,9 @@ class AppState: ObservableObject {
         let engine = LayoutEngine()
         switch doc.layoutType {
         case .radial:
-            engine.applyRadialLayout(to: &doc)
+            engine.applyRadialLayout(to: &doc, showAll: childrenShowAll)
         case .tree:
-            engine.applyTreeLayout(to: &doc)
+            engine.applyTreeLayout(to: &doc, showAll: childrenShowAll)
         }
         currentDocument = doc
         saveCurrentDocument()
@@ -388,13 +393,27 @@ class AppState: ObservableObject {
 
     func exportAsMarkdown() {
         guard let doc = currentDocument else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.nameFieldStringValue = "\(doc.title).md"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        MarkdownExporter.export(doc: doc, to: url)
+    }
+
+    func importAsMarkdown() {
         let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.canChooseFiles = false
-        panel.message = "Choose a directory to export markdown files"
-        guard panel.runModal() == .OK, let dirURL = panel.url else { return }
-        MarkdownExporter.export(doc: doc, to: dirURL)
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a Markdown file to import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let doc = MarkdownImporter.import(from: url) else { return }
+        documents.insert(doc, at: 0)
+        currentDocumentID = doc.id
+        applyLayout()
+        centerOnRoot()
+        saveCurrentDocument()
     }
 }
 
