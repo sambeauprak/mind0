@@ -41,6 +41,9 @@ class AppState: ObservableObject {
     }
 
     private let documentManager = DocumentManager.shared
+    private var undoStack: [MindDocument] = []
+    private var redoStack: [MindDocument] = []
+    private let maxUndoCount = 20
 
     var currentDocument: MindDocument? {
         get { documents.first(where: { $0.id == currentDocumentID }) }
@@ -51,6 +54,44 @@ class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    func saveUndoState() {
+        guard let doc = currentDocument else { return }
+        if let data = try? JSONEncoder().encode(doc),
+           let copy = try? JSONDecoder().decode(MindDocument.self, from: data) {
+            undoStack.append(copy)
+            if undoStack.count > maxUndoCount {
+                undoStack.removeFirst()
+            }
+            redoStack.removeAll()
+        }
+    }
+
+    func undo() {
+        guard !undoStack.isEmpty, let doc = currentDocument else { return }
+        if let data = try? JSONEncoder().encode(doc),
+           let copy = try? JSONDecoder().decode(MindDocument.self, from: data) {
+            redoStack.append(copy)
+        }
+        let previous = undoStack.removeLast()
+        currentDocument = previous
+        canvasScale = previous.canvasScale
+        canvasOffset = previous.canvasOffset
+        saveCurrentDocument()
+    }
+
+    func redo() {
+        guard !redoStack.isEmpty, let doc = currentDocument else { return }
+        if let data = try? JSONEncoder().encode(doc),
+           let copy = try? JSONDecoder().decode(MindDocument.self, from: data) {
+            undoStack.append(copy)
+        }
+        let next = redoStack.removeLast()
+        currentDocument = next
+        canvasScale = next.canvasScale
+        canvasOffset = next.canvasOffset
+        saveCurrentDocument()
     }
 
     func saveCurrentDocument() {
@@ -161,6 +202,7 @@ class AppState: ObservableObject {
 
     func addChild(to parentID: UUID) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         let child = MindNode(title: "New Node")
         doc.nodes[child.id] = child
         doc.nodes[parentID]?.childrenIDs.append(child.id)
@@ -171,6 +213,7 @@ class AppState: ObservableObject {
 
     func deleteNode(_ nodeID: UUID) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         if nodeID == doc.rootNodeID { return }
         let allDescendants = doc.allDescendantIDs(of: nodeID)
         for descID in allDescendants {
@@ -187,6 +230,7 @@ class AppState: ObservableObject {
 
     func toggleCollapse(_ nodeID: UUID) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.isCollapsed.toggle()
         currentDocument = doc
         saveCurrentDocument()
@@ -194,13 +238,22 @@ class AppState: ObservableObject {
 
     func updateNodeTitle(_ nodeID: UUID, title: String) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.title = title
+        currentDocument = doc
+        saveCurrentDocument()
+    }
+
+    func updateNodePosition(_ nodeID: UUID, position: CGPoint) {
+        guard var doc = currentDocument else { return }
+        doc.nodes[nodeID]?.position = position
         currentDocument = doc
         saveCurrentDocument()
     }
 
     func updateNodeColor(_ nodeID: UUID, color: String) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.backgroundColor = color
         currentDocument = doc
         saveCurrentDocument()
@@ -208,6 +261,7 @@ class AppState: ObservableObject {
 
     func updateNodeShape(_ nodeID: UUID, shape: NodeShape) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.shape = shape
         currentDocument = doc
         saveCurrentDocument()
@@ -215,6 +269,7 @@ class AppState: ObservableObject {
 
     func updateNodeLineColor(_ nodeID: UUID, color: String) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.lineColor = color
         currentDocument = doc
         saveCurrentDocument()
@@ -222,6 +277,7 @@ class AppState: ObservableObject {
 
     func updateNodeImageCoverMode(_ nodeID: UUID, enabled: Bool) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.imageCoverMode = enabled
         currentDocument = doc
         saveCurrentDocument()
@@ -229,6 +285,7 @@ class AppState: ObservableObject {
 
     func setNodeImage(_ nodeID: UUID, image: NSImage) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         if let data = image.tiffRepresentation {
             doc.nodes[nodeID]?.imageData = data
         }
@@ -238,6 +295,7 @@ class AppState: ObservableObject {
 
     func removeNodeImage(_ nodeID: UUID) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.nodes[nodeID]?.imageData = nil
         doc.nodes[nodeID]?.imagePath = nil
         doc.nodes[nodeID]?.imageCoverMode = false
@@ -260,6 +318,7 @@ class AppState: ObservableObject {
 
     func setLayoutType(_ type: LayoutType) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.layoutType = type
         currentDocument = doc
         applyLayout()
@@ -267,12 +326,14 @@ class AppState: ObservableObject {
 
     func setLineStyle(_ style: LineStyle) {
         guard var doc = currentDocument else { return }
+        saveUndoState()
         doc.lineStyle = style
         currentDocument = doc
         saveCurrentDocument()
     }
 
     func applyTheme(_ theme: Theme) {
+        saveUndoState()
         currentTheme = theme
         guard var doc = currentDocument else { return }
         for (id, _) in doc.nodes {

@@ -14,6 +14,18 @@ struct Mind0App: App {
                 }
         }
         .commands {
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") {
+                    appState.undo()
+                }
+                .keyboardShortcut("z", modifiers: .command)
+
+                Button("Redo") {
+                    appState.redo()
+                }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+            }
+
             CommandMenu("Node") {
                 Button("Add Child Node") {
                     if let selectedID = appState.selectedNodeIDs.first {

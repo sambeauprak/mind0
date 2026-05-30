@@ -3,7 +3,7 @@ import Foundation
 struct LayoutEngine {
     let nodeSize = CGSize(width: 180, height: 60)
     let horizontalSpacing: CGFloat = 80
-    let verticalSpacing: CGFloat = 20
+    let verticalSpacing: CGFloat = 60
     let radialRadius: CGFloat = 160
 
     // MARK: - Radial Layout

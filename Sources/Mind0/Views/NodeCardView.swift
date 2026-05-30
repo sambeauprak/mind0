@@ -7,6 +7,9 @@ struct NodeCardView: View {
     @State private var showColorPicker: Bool = false
     @State private var editText: String = ""
     @State private var isEditingLocally: Bool = false
+    @State private var dragStartPosition: CGPoint = .zero
+    @State private var didSaveUndoForDrag: Bool = false
+    @FocusState private var isFocused: Bool
 
     private let cardWidth: CGFloat = 180
     private let cardHeight: CGFloat = 80
@@ -17,83 +20,119 @@ struct NodeCardView: View {
 
     var body: some View {
         if let node = node {
-            VStack(spacing: 0) {
-                if node.imageCoverMode, let img = loadedImage {
-                    imageCoverContent(img, node: node)
-                } else {
-                    standardContent(node: node)
+            cardContent(node: node)
+                .onHover { hovering in
+                    isHovered = hovering
                 }
-            }
-            .frame(width: cardWidth, height: node.imageCoverMode && loadedImage != nil ? 120 : cardHeight)
-            .background(
-                shapeView(node: node)
-                    .fill(node.backgroundColorSwift)
-                    .shadow(color: .black.opacity(isHovered ? 0.18 : 0.08), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
-            )
-            .overlay(
-                shapeView(node: node)
-                    .stroke(appState.selectedNodeIDs.contains(nodeID) ? Color.accentColor : Color.gray.opacity(0.2), lineWidth: appState.selectedNodeIDs.contains(nodeID) ? 2.5 : 1)
-            )
-            .overlay(
-                shapeView(node: node)
-                    .stroke(appState.presentationHighlightNodeID == nodeID ? Color.accentColor.opacity(0.8) : Color.clear, lineWidth: appState.presentationHighlightNodeID == nodeID ? 4 : 0)
-                    .shadow(color: appState.presentationHighlightNodeID == nodeID ? Color.accentColor.opacity(0.5) : .clear, radius: 8)
-            )
-            .clipShape(shapeView(node: node))
-            .overlay(alignment: .topTrailing) {
-                if isHovered, nodeID != appState.currentDocument?.rootNodeID {
-                    collapseButton(node: node)
-                        .padding(4)
+                .gesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                        .onChanged { value in
+                            if !didSaveUndoForDrag {
+                                appState.saveUndoState()
+                                dragStartPosition = node.position
+                                didSaveUndoForDrag = true
+                            }
+                            let scale = appState.canvasScale
+                            let delta = value.translation
+                            let newPos = CGPoint(
+                                x: dragStartPosition.x + delta.width / scale,
+                                y: dragStartPosition.y + delta.height / scale
+                            )
+                            appState.updateNodePosition(nodeID, position: newPos)
+                        }
+                        .onEnded { _ in
+                            didSaveUndoForDrag = false
+                            appState.saveCurrentDocument()
+                        }
+                )
+                .simultaneousGesture(
+                    TapGesture(count: 2)
+                        .onEnded {
+                            editText = node.title
+                            isEditingLocally = true
+                        }
+                )
+                .onTapGesture {
+                    appState.selectedNodeIDs = [nodeID]
                 }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                colorDot
-                    .padding(4)
-            }
-            .overlay(alignment: .topLeading) {
-                if isHovered {
-                    HStack(spacing: 2) {
-                        editButton
-                        imageButton
-                        addButton
-                    }
-                    .padding(4)
+                .contextMenu {
+                    NodeContextMenu(nodeID: nodeID)
+                        .environmentObject(appState)
                 }
-            }
-            .onHover { hovering in
-                isHovered = hovering
-            }
-            .simultaneousGesture(
-                TapGesture(count: 2)
-                    .onEnded {
+                .popover(isPresented: $showColorPicker) {
+                    ColorPickerView(nodeID: nodeID, node: node)
+                        .environmentObject(appState)
+                }
+                .onChange(of: appState.editingNodeID) { _, newID in
+                    if newID == nodeID {
                         editText = node.title
                         isEditingLocally = true
+                        appState.editingNodeID = nil
                     }
-            )
-            .onTapGesture {
-                appState.selectedNodeIDs = [nodeID]
-            }
-            .contextMenu {
-                NodeContextMenu(nodeID: nodeID)
-                    .environmentObject(appState)
-            }
-            .popover(isPresented: $showColorPicker) {
-                ColorPickerView(nodeID: nodeID, node: node)
-                    .environmentObject(appState)
-            }
-            .sheet(isPresented: $isEditingLocally) {
-                editSheet
-            }
-            .onChange(of: appState.editingNodeID) { _, newID in
-                if newID == nodeID {
-                    editText = node.title
-                    isEditingLocally = true
-                    appState.editingNodeID = nil
                 }
-            }
-            .opacity(appState.isPresenting && appState.presentationHighlightNodeID != nodeID ? 0.25 : 1.0)
-            .zIndex(appState.isPresenting && appState.presentationHighlightNodeID == nodeID ? 10 : 0)
+                .onChange(of: isEditingLocally) { _, newValue in
+                    if newValue {
+                        isFocused = true
+                    }
+                }
+                .onChange(of: appState.selectedNodeIDs) { _, newIDs in
+                    if !newIDs.contains(nodeID) {
+                        isEditingLocally = false
+                    }
+                }
+                .opacity(appState.isPresenting && appState.presentationHighlightNodeID != nodeID ? 0.25 : 1.0)
+                .zIndex(appState.isPresenting && appState.presentationHighlightNodeID == nodeID ? 10 : 0)
         }
+    }
+
+    private func cardContent(node: MindNode) -> some View {
+        VStack(spacing: 0) {
+            if node.imageCoverMode, let img = loadedImage {
+                imageCoverContent(img, node: node)
+            } else {
+                standardContent(node: node)
+            }
+        }
+        .frame(width: cardWidth, height: node.imageCoverMode && loadedImage != nil ? 120 : cardHeight)
+        .background(
+            shapeView(node: node)
+                .fill(node.backgroundColorSwift)
+                .shadow(color: .black.opacity(isHovered ? 0.18 : 0.08), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
+        )
+        .overlay(selectionStroke(node: node))
+        .overlay(presentationStroke(node: node))
+        .clipShape(shapeView(node: node))
+        .overlay(alignment: .topTrailing) {
+            if isHovered, nodeID != appState.currentDocument?.rootNodeID {
+                collapseButton(node: node)
+                    .padding(4)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            colorDot
+                .padding(4)
+        }
+        .overlay(alignment: .topLeading) {
+            if isHovered {
+                HStack(spacing: 2) {
+                    editButton
+                    imageButton
+                    addButton
+                }
+                .padding(4)
+            }
+        }
+    }
+
+    private func selectionStroke(node: MindNode) -> some View {
+        shapeView(node: node)
+            .stroke(appState.selectedNodeIDs.contains(nodeID) ? Color.accentColor : Color.gray.opacity(0.2), lineWidth: appState.selectedNodeIDs.contains(nodeID) ? 2.5 : 1)
+    }
+
+    private func presentationStroke(node: MindNode) -> some View {
+        shapeView(node: node)
+            .stroke(appState.presentationHighlightNodeID == nodeID ? Color.accentColor.opacity(0.8) : Color.clear, lineWidth: appState.presentationHighlightNodeID == nodeID ? 4 : 0)
+            .shadow(color: appState.presentationHighlightNodeID == nodeID ? Color.accentColor.opacity(0.5) : .clear, radius: 8)
     }
 
     private var loadedImage: NSImage? {
@@ -119,12 +158,25 @@ struct NodeCardView: View {
                     .padding(.top, 4)
             }
 
-            Text(node.title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(textColor)
-                .lineLimit(3)
-                .padding(.horizontal, 10)
-                .padding(.vertical, loadedImage == nil ? 12 : 4)
+            if isEditingLocally {
+                TextField("", text: $editText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(textColor)
+                    .multilineTextAlignment(.center)
+                    .focused($isFocused)
+                    .onSubmit { saveEdit() }
+                    .onExitCommand { isEditingLocally = false }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, loadedImage == nil ? 12 : 4)
+            } else {
+                Text(node.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(textColor)
+                    .lineLimit(3)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, loadedImage == nil ? 12 : 4)
+            }
         }
         .frame(maxWidth: cardWidth, maxHeight: cardHeight)
     }
@@ -155,11 +207,22 @@ struct NodeCardView: View {
                 endPoint: .bottom
             )
 
-            Text(node.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .padding(10)
+            if isEditingLocally {
+                TextField("", text: $editText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .focused($isFocused)
+                    .onSubmit { saveEdit() }
+                    .onExitCommand { isEditingLocally = false }
+                    .padding(10)
+            } else {
+                Text(node.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                    .padding(10)
+            }
         }
         .onTapGesture {
             appState.previewImage = img
@@ -240,35 +303,6 @@ struct NodeCardView: View {
         }
         .buttonStyle(.plain)
         .help("Add Image")
-    }
-
-    private var editSheet: some View {
-        VStack(spacing: 16) {
-            Text("Edit Node Title")
-                .font(.headline)
-
-            TextField("Title", text: $editText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 250)
-                .onSubmit {
-                    saveEdit()
-                }
-
-            HStack {
-                Button("Cancel") {
-                    isEditingLocally = false
-                }
-                .keyboardShortcut(.escape)
-
-                Button("Save") {
-                    saveEdit()
-                }
-                .keyboardShortcut(.return)
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(24)
-        .frame(width: 320)
     }
 
     private func saveEdit() {
