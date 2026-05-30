@@ -49,17 +49,46 @@ struct MindDocument: Identifiable, Codable {
     }
 
     func flattenedNodes() -> [(UUID, MindNode)] {
+        flattenedNodes(showAll: [])
+    }
+
+    func flattenedNodes(showAll: Set<UUID>) -> [(UUID, MindNode)] {
         var result: [(UUID, MindNode)] = []
         func traverse(_ id: UUID) {
             guard let node = nodes[id] else { return }
             result.append((id, node))
             if !node.isCollapsed {
-                for childID in node.childrenIDs {
+                let children = node.childrenIDs
+                let maxChildren = showAll.contains(id) ? children.count : min(children.count, 5)
+                for childID in children.prefix(maxChildren) {
                     traverse(childID)
                 }
             }
         }
         traverse(rootNodeID)
+        return result
+    }
+
+    struct ShowMoreInfo: Identifiable {
+        let id: UUID
+        let parentID: UUID
+        let position: CGPoint
+        let hiddenCount: Int
+    }
+
+    func showMoreButtonData(showAll: Set<UUID>) -> [ShowMoreInfo] {
+        var result: [ShowMoreInfo] = []
+        for (id, node) in nodes {
+            guard !node.isCollapsed, node.childrenIDs.count > 5, !showAll.contains(id) else { continue }
+            if let sixth = nodes[node.childrenIDs[5]] {
+                result.append(ShowMoreInfo(
+                    id: UUID(),
+                    parentID: id,
+                    position: sixth.position,
+                    hiddenCount: node.childrenIDs.count - 5
+                ))
+            }
+        }
         return result
     }
 

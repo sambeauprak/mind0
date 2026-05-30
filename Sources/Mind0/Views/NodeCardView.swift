@@ -336,6 +336,16 @@ struct NodeContextMenu: View {
         appState.currentDocument?.nodes[nodeID]
     }
 
+    private var siblingIndex: (parentID: UUID, index: Int, total: Int)? {
+        guard let doc = appState.currentDocument else { return nil }
+        for (pid, pnode) in doc.nodes {
+            if let idx = pnode.childrenIDs.firstIndex(of: nodeID) {
+                return (pid, idx, pnode.childrenIDs.count)
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         Group {
             Button("Add Child Node") { appState.addChild(to: nodeID) }
@@ -362,6 +372,14 @@ struct NodeContextMenu: View {
             Divider()
 
             if nodeID != appState.currentDocument?.rootNodeID {
+                if let info = siblingIndex {
+                    if info.index > 0 {
+                        Button("Move Up") { appState.moveChild(nodeID, by: -1) }
+                    }
+                    if info.index < info.total - 1 {
+                        Button("Move Down") { appState.moveChild(nodeID, by: 1) }
+                    }
+                }
                 Button("Delete Node", role: .destructive) { appState.deleteNode(nodeID) }
             }
         }

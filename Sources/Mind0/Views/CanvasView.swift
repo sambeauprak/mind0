@@ -4,6 +4,7 @@ struct CanvasView: View {
     @EnvironmentObject var appState: AppState
     @State private var isPanning: Bool = false
     @State private var panStartOffset: CGSize = .zero
+    @State private var showPresentationPicker: Bool = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -17,11 +18,14 @@ struct CanvasView: View {
 
                 if let doc = appState.currentDocument {
                     ZStack {
-                        ConnectionLinesView(doc: doc, lineStyle: doc.lineStyle, highlightedNodeID: appState.presentationHighlightNodeID)
-                        ForEach(doc.flattenedNodes(), id: \.0) { (id, node) in
+                        ConnectionLinesView(doc: doc, lineStyle: doc.lineStyle, highlightedNodeID: appState.presentationHighlightNodeID, showAll: appState.childrenShowAll)
+                        ForEach(doc.flattenedNodes(showAll: appState.childrenShowAll), id: \.0) { (id, node) in
                             NodeCardView(nodeID: id)
                                 .environmentObject(appState)
                                 .position(node.position)
+                        }
+                        ForEach(doc.showMoreButtonData(showAll: appState.childrenShowAll)) { info in
+                            showMoreButton(info: info)
                         }
                     }
                     .scaleEffect(appState.canvasScale, anchor: .topLeading)
@@ -157,9 +161,40 @@ struct CanvasView: View {
             Divider()
                 .frame(height: 12)
 
-            Button(action: { appState.enterPresentation() }) {
+            Button(action: { showPresentationPicker = true }) {
                 Image(systemName: "play.rectangle")
                     .font(.system(size: 11))
+            }
+            .popover(isPresented: $showPresentationPicker) {
+                VStack(spacing: 0) {
+                    ForEach(PresentationMode.allCases, id: \.self) { mode in
+                        Button(action: {
+                            showPresentationPicker = false
+                            appState.enterPresentation(mode: mode)
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(mode.displayName)
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text(mode.helpText)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if mode != PresentationMode.allCases.last {
+                            Divider()
+                                .padding(.leading, 12)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .frame(width: 200)
             }
             .help("Presentation Mode (→ / ←)")
 
@@ -196,7 +231,7 @@ struct CanvasView: View {
 
     private func fitAllNodes(geometry: GeometryProxy) {
         guard let doc = appState.currentDocument, geometry.size.width > 0, geometry.size.height > 0 else { return }
-        let allNodes = doc.flattenedNodes()
+        let allNodes = doc.flattenedNodes(showAll: appState.childrenShowAll)
         guard !allNodes.isEmpty else { return }
 
         var minX = CGFloat.infinity, minY = CGFloat.infinity
@@ -238,6 +273,29 @@ struct CanvasView: View {
         }
     }
 
+    @ViewBuilder
+    private func showMoreButton(info: MindDocument.ShowMoreInfo) -> some View {
+        Button(action: { appState.toggleShowAllChildren(info.parentID) }) {
+            HStack(spacing: 4) {
+                Text("...")
+                    .font(.system(size: 14, weight: .bold))
+                Text("+\(info.hiddenCount)")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .help("Show \(info.hiddenCount) more children")
+    }
+
     private func focusOnCurrentPresentationNode(geometry: GeometryProxy) {
         guard appState.isPresenting,
               appState.presentationIndex < appState.presentationOrder.count,
@@ -257,6 +315,7 @@ struct ConnectionLinesView: View {
     let doc: MindDocument
     let lineStyle: LineStyle
     let highlightedNodeID: UUID?
+    let showAll: Set<UUID>
 
     struct Connection: Identifiable {
         let id: String
@@ -267,7 +326,7 @@ struct ConnectionLinesView: View {
     }
 
     var connections: [Connection] {
-        let visibleIDs = Set(doc.flattenedNodes().map { $0.0 })
+        let visibleIDs = Set(doc.flattenedNodes(showAll: showAll).map { $0.0 })
         return doc.nodes.flatMap { parentID, parent in
             return parent.childrenIDs.compactMap { childID in
                 guard visibleIDs.contains(parentID), visibleIDs.contains(childID) else { return nil }

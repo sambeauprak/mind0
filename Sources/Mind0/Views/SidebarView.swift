@@ -89,6 +89,16 @@ struct NodeTreeView: View {
     @EnvironmentObject var appState: AppState
     @State private var isHovered: Bool = false
 
+    private var siblingIndex: (parentID: UUID, index: Int, total: Int)? {
+        guard let doc = appState.currentDocument else { return nil }
+        for (pid, pnode) in doc.nodes {
+            if let idx = pnode.childrenIDs.firstIndex(of: nodeID) {
+                return (pid, idx, pnode.childrenIDs.count)
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         if let node = appState.currentDocument?.nodes[nodeID] {
             HStack(spacing: 4) {
@@ -117,6 +127,25 @@ struct NodeTreeView: View {
 
                 if isHovered {
                     HStack(spacing: 2) {
+                        if let info = siblingIndex {
+                            if info.index > 0 {
+                                Button(action: { appState.moveChild(nodeID, by: -1) }) {
+                                    Image(systemName: "chevron.up")
+                                        .font(.system(size: 8, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Move Up")
+                            }
+                            if info.index < info.total - 1 {
+                                Button(action: { appState.moveChild(nodeID, by: 1) }) {
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 8, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Move Down")
+                            }
+                        }
+
                         Button(action: { appState.addChild(to: nodeID) }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 8, weight: .bold))
@@ -158,14 +187,41 @@ struct NodeTreeView: View {
             .contextMenu {
                 Button("Add Child") { appState.addChild(to: nodeID) }
                 if nodeID != appState.currentDocument?.rootNodeID {
+                    if let info = siblingIndex {
+                        if info.index > 0 {
+                            Button("Move Up") { appState.moveChild(nodeID, by: -1) }
+                        }
+                        if info.index < info.total - 1 {
+                            Button("Move Down") { appState.moveChild(nodeID, by: 1) }
+                        }
+                    }
+                    Divider()
                     Button("Delete", role: .destructive) { appState.deleteNode(nodeID) }
                 }
             }
 
             if !node.isCollapsed {
-                ForEach(node.childrenIDs, id: \.self) { childID in
+                let children = node.childrenIDs
+                let maxChildren = appState.childrenShowAll.contains(nodeID) ? children.count : min(children.count, 5)
+                ForEach(children.prefix(maxChildren), id: \.self) { childID in
                     NodeTreeView(nodeID: childID, depth: depth + 1)
                         .environmentObject(appState)
+                }
+                if children.count > 5, !appState.childrenShowAll.contains(nodeID) {
+                    Button(action: { appState.toggleShowAllChildren(nodeID) }) {
+                        HStack(spacing: 4) {
+                            Text("...")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.secondary)
+                            Text("+\(children.count - 5) more")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, CGFloat(depth + 1) * 12 + 16)
+                    .help("Show \(children.count - 5) more children")
                 }
             }
         }

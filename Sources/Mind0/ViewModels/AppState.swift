@@ -32,6 +32,7 @@ class AppState: ObservableObject {
     @Published var showNewDocAlert: Bool = false
     @Published var isPresenting: Bool = false
     @Published var presentationIndex: Int = 0
+    @Published var childrenShowAll: Set<UUID> = []
     var presentationOrder: [(UUID, MindNode)] = []
 
     var presentationHighlightNodeID: UUID? {
@@ -119,18 +120,32 @@ class AppState: ObservableObject {
         )
     }
 
-    func enterPresentation() {
+    func enterPresentation(mode: PresentationMode = .breadthFirst) {
         guard let doc = currentDocument else { return }
         sidebarVisible = false
         var order: [(UUID, MindNode)] = []
-        var queue: [UUID] = [doc.rootNodeID]
-        while !queue.isEmpty {
-            let id = queue.removeFirst()
-            guard let node = doc.nodes[id] else { continue }
-            order.append((id, node))
-            if !node.isCollapsed {
-                queue.append(contentsOf: node.childrenIDs)
+        switch mode {
+        case .breadthFirst:
+            var queue: [UUID] = [doc.rootNodeID]
+            while !queue.isEmpty {
+                let id = queue.removeFirst()
+                guard let node = doc.nodes[id] else { continue }
+                order.append((id, node))
+                if !node.isCollapsed {
+                    queue.append(contentsOf: node.childrenIDs)
+                }
             }
+        case .depthFirst:
+            func traverse(_ id: UUID) {
+                guard let node = doc.nodes[id] else { return }
+                order.append((id, node))
+                if !node.isCollapsed {
+                    for childID in node.childrenIDs {
+                        traverse(childID)
+                    }
+                }
+            }
+            traverse(doc.rootNodeID)
         }
         presentationOrder = order
         presentationIndex = 0
@@ -209,6 +224,22 @@ class AppState: ObservableObject {
         saveCurrentDocument()
     }
 
+    func moveChild(_ childID: UUID, by offset: Int) {
+        guard var doc = currentDocument else { return }
+        saveUndoState()
+        guard let parentEntry = doc.nodes.first(where: { $0.value.childrenIDs.contains(childID) }),
+              var children = doc.nodes[parentEntry.key]?.childrenIDs,
+              let currentIndex = children.firstIndex(of: childID) else { return }
+        let newIndex = currentIndex + offset
+        guard newIndex >= 0, newIndex < children.count else { return }
+        children.remove(at: currentIndex)
+        children.insert(childID, at: newIndex)
+        doc.nodes[parentEntry.key]?.childrenIDs = children
+        currentDocument = doc
+        applyLayout()
+        saveCurrentDocument()
+    }
+
     func deleteNode(_ nodeID: UUID) {
         guard var doc = currentDocument else { return }
         saveUndoState()
@@ -224,6 +255,14 @@ class AppState: ObservableObject {
         selectedNodeIDs.remove(nodeID)
         currentDocument = doc
         saveCurrentDocument()
+    }
+
+    func toggleShowAllChildren(_ nodeID: UUID) {
+        if childrenShowAll.contains(nodeID) {
+            childrenShowAll.remove(nodeID)
+        } else {
+            childrenShowAll.insert(nodeID)
+        }
     }
 
     func toggleCollapse(_ nodeID: UUID) {
@@ -356,5 +395,24 @@ class AppState: ObservableObject {
         panel.message = "Choose a directory to export markdown files"
         guard panel.runModal() == .OK, let dirURL = panel.url else { return }
         MarkdownExporter.export(doc: doc, to: dirURL)
+    }
+}
+
+enum PresentationMode: String, CaseIterable {
+    case breadthFirst
+    case depthFirst
+
+    var displayName: String {
+        switch self {
+        case .breadthFirst: "Default (Parents First)"
+        case .depthFirst: "Children First"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .breadthFirst: "All parent nodes first, then children"
+        case .depthFirst: "Root, then first child recursively, then backtrack"
+        }
     }
 }
