@@ -377,12 +377,13 @@ class AppState: ObservableObject {
         let fixedCenter = CGPoint(x: fixedRect.midX, y: fixedRect.midY)
         let otherCenter = CGPoint(x: otherRect.midX, y: otherRect.midY)
 
+        let pushDist = nodeCardSize.width
         if overlapX < overlapY {
             let sign: CGFloat = otherCenter.x >= fixedCenter.x ? 1 : -1
-            return CGSize(width: overlapX * sign, height: 0)
+            return CGSize(width: pushDist * sign, height: 0)
         } else {
             let sign: CGFloat = otherCenter.y >= fixedCenter.y ? 1 : -1
-            return CGSize(width: 0, height: overlapY * sign)
+            return CGSize(width: 0, height: pushDist * sign)
         }
     }
 
