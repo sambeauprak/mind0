@@ -5,6 +5,10 @@ A native macOS mindmapping application built with **SwiftUI**. Create, arrange, 
 ![Platform](https://img.shields.io/badge/platform-macOS_14%2B-blue)
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 
+## Screenshots
+
+![Mind0 main canvas](screenshots/main.png)
+
 ---
 
 ## Features
