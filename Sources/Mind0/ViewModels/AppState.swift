@@ -333,37 +333,48 @@ class AppState: ObservableObject {
         guard let startPos = dragSubtreePositions[nodeID] else { return }
 
         let delta = CGPoint(x: newPos.x - startPos.x, y: newPos.y - startPos.y)
+        let subtreeSet = Set(dragSubtreePositions.keys)
 
         // 1. Move entire subtree by delta
         for (id, pos) in dragSubtreePositions {
             doc.nodes[id]?.position = CGPoint(x: pos.x + delta.x, y: pos.y + delta.y)
         }
 
-        // 2. Check collisions between dragged node and all non-subtree nodes
-        let draggedRect = CGRect(
-            x: newPos.x - nodeCardSize.width / 2,
-            y: newPos.y - nodeCardSize.height / 2,
-            width: nodeCardSize.width,
-            height: nodeCardSize.height
-        )
-        let subtreeSet = Set(dragSubtreePositions.keys)
-
-        for (id, node) in doc.nodes where !subtreeSet.contains(id) {
-            let otherRect = CGRect(
-                x: node.position.x - nodeCardSize.width / 2,
-                y: node.position.y - nodeCardSize.height / 2,
+        // 2. Resolve collisions cascade — push any colliding node by a full card width,
+        //    then check if the pushed node now collides with yet another node, repeat.
+        var movedIDs: Set<UUID> = subtreeSet
+        var queue: [UUID] = [nodeID]
+        while !queue.isEmpty {
+            let subjectID = queue.removeFirst()
+            let subjectPos = doc.nodes[subjectID]?.position ?? .zero
+            let subjectRect = CGRect(
+                x: subjectPos.x - nodeCardSize.width / 2,
+                y: subjectPos.y - nodeCardSize.height / 2,
                 width: nodeCardSize.width,
                 height: nodeCardSize.height
             )
-            if let push = repulsion(fixedRect: draggedRect, otherRect: otherRect) {
-                doc.nodes[id]?.position = CGPoint(
-                    x: node.position.x + push.width,
-                    y: node.position.y + push.height
+
+            for (otherID, otherNode) in doc.nodes where !movedIDs.contains(otherID) {
+                let otherRect = CGRect(
+                    x: otherNode.position.x - nodeCardSize.width / 2,
+                    y: otherNode.position.y - nodeCardSize.height / 2,
+                    width: nodeCardSize.width,
+                    height: nodeCardSize.height
                 )
+                if let push = repulsion(fixedRect: subjectRect, otherRect: otherRect) {
+                    doc.nodes[otherID]?.position = CGPoint(
+                        x: otherNode.position.x + push.width,
+                        y: otherNode.position.y + push.height
+                    )
+                    movedIDs.insert(otherID)
+                    queue.append(otherID)
+                }
             }
         }
 
-        currentDocument = doc
+        withAnimation(.interactiveSpring) {
+            currentDocument = doc
+        }
     }
 
     /// Returns the minimum displacement to push `otherRect` out of `fixedRect`,
