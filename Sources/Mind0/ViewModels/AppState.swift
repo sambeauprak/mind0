@@ -500,7 +500,7 @@ class AppState: ObservableObject {
         panel.allowedContentTypes = [UTType.svg]
         panel.nameFieldStringValue = doc.title
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let svg = SVGExporter.export(doc: doc)
+        let svg = SVGExporter.export(doc: doc, availableImages: loadedImages)
         try? svg.write(to: url, atomically: true, encoding: .utf8)
     }
 
