@@ -423,6 +423,7 @@ class AppState: ObservableObject {
         saveUndoState()
         if let data = image.tiffRepresentation {
             doc.nodes[nodeID]?.imageData = data
+            doc.nodes[nodeID]?.imageCoverMode = true
         }
         currentDocument = doc
         saveCurrentDocument()

@@ -30,6 +30,7 @@ struct NodeCardView: View {
                             if !didSaveUndoForDrag {
                                 appState.saveUndoState()
                                 dragStartPosition = node.position
+                                appState.beginDragSubtree(nodeID)
                                 didSaveUndoForDrag = true
                             }
                             let scale = appState.canvasScale
@@ -38,7 +39,7 @@ struct NodeCardView: View {
                                 x: dragStartPosition.x + delta.width / scale,
                                 y: dragStartPosition.y + delta.height / scale
                             )
-                            appState.setNodePosition(nodeID, position: newPos)
+                            appState.dragNode(nodeID, to: newPos)
                         }
                         .onEnded { _ in
                             didSaveUndoForDrag = false
