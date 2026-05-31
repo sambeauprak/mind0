@@ -16,27 +16,24 @@ struct ContentView: View {
                 .frame(minWidth: 500)
                 .layoutPriority(2)
         }
+        .overlay(alignment: .topLeading) {
+            if !appState.sidebarVisible && !appState.isPresenting {
+                Button(action: { appState.sidebarVisible = true }) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .help("Show Sidebar")
+                .padding(.leading, 4)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             if !appState.isPresenting {
                 HStack(spacing: 4) {
-                Button(action: {
-                    newDocTitle = "Untitled"
-                    appState.showNewDocAlert = true
-                }) {
-                    Label("New", systemImage: "plus")
-                }
-                .labelStyle(.iconOnly)
-                .help("New Document")
-
-                Divider()
-                    .frame(height: 14)
-
-                Button(action: { appState.sidebarVisible.toggle() }) {
-                    Label("Sidebar", systemImage: "sidebar.left")
-                }
-                .labelStyle(.iconOnly)
-                .help("Toggle Sidebar")
-
                 Button(action: { appState.applyLayout() }) {
                     Label("Layout", systemImage: "arrow.triangle.2.circlepath")
                 }
@@ -72,12 +69,6 @@ struct ContentView: View {
 
                 Divider()
                     .frame(height: 14)
-
-                Button(action: { appState.importAsMarkdown() }) {
-                    Label("Import", systemImage: "square.and.arrow.down")
-                }
-                .labelStyle(.iconOnly)
-                .help("Import Markdown")
 
                 Button(action: { appState.isExporting = true }) {
                     Label("Export", systemImage: "square.and.arrow.up")

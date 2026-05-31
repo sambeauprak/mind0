@@ -5,12 +5,22 @@ struct SidebarView: View {
     @State private var docToDelete: MindDocument?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                sectionHeader("Documents")
+        ZStack(alignment: .topTrailing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        sectionHeader("Documents")
+                        Spacer()
+                        Button(action: { appState.showNewDocAlert = true }) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .help("New Document")
+                    }
                     .padding(.horizontal, 8)
 
-                ForEach(appState.documents) { doc in
+                    ForEach(appState.documents) { doc in
                     HStack(spacing: 8) {
                         Image(systemName: "doc.text")
                             .foregroundColor(.accentColor)
@@ -39,6 +49,8 @@ struct SidebarView: View {
                     .background(doc.id == appState.currentDocumentID ? Color.accentColor.opacity(0.1) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .contextMenu {
+                        Button("Import Markdown...") { appState.importAsMarkdown() }
+                        Divider()
                         Button("Delete", role: .destructive) { docToDelete = doc }
                     }
                     .onTapGesture {
@@ -57,14 +69,19 @@ struct SidebarView: View {
             }
             .padding(.vertical, 8)
         }
-        .toolbar {
-            ToolbarItem {
-                Button(action: { appState.showNewDocAlert = true }) {
-                    Image(systemName: "plus")
-                }
-                .help("New Document")
-            }
+
+        Button(action: { appState.sidebarVisible.toggle() }) {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(6)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
         }
+        .buttonStyle(.plain)
+        .help("Close Sidebar")
+        .padding(4)
+    }
         .confirmationDialog(
             "Delete Document",
             isPresented: Binding(

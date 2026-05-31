@@ -31,6 +31,7 @@ struct MindNode: Identifiable, Codable {
     var imageCoverMode: Bool
     var isRoot: Bool
     var columnIndex: Int
+    var childrenLayout: LayoutType?
 
     init(
         id: UUID = UUID(),
@@ -43,9 +44,10 @@ struct MindNode: Identifiable, Codable {
         imagePath: String? = nil,
         shape: NodeShape = .roundedRect,
         lineColor: String = "#4A90D9",
-        imageCoverMode: Bool = false,
+        imageCoverMode: Bool = true,
         isRoot: Bool = false,
-        columnIndex: Int = 0
+        columnIndex: Int = 0,
+        childrenLayout: LayoutType? = nil
     ) {
         self.id = id
         self.title = title
@@ -60,6 +62,7 @@ struct MindNode: Identifiable, Codable {
         self.imageCoverMode = imageCoverMode
         self.isRoot = isRoot
         self.columnIndex = columnIndex
+        self.childrenLayout = childrenLayout
     }
 
     var backgroundColorSwift: Color {

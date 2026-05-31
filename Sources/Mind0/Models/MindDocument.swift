@@ -127,11 +127,17 @@ struct MindDocument: Identifiable, Codable {
 enum LayoutType: String, Codable, CaseIterable {
     case radial
     case tree
+    case treeRight
+    case treeUp
+    case treeDown
 
     var displayName: String {
         switch self {
         case .radial: "Radial (Center)"
         case .tree: "Tree (Left)"
+        case .treeRight: "Tree (Right)"
+        case .treeUp: "Tree (Up)"
+        case .treeDown: "Tree (Down)"
         }
     }
 }
@@ -139,11 +145,13 @@ enum LayoutType: String, Codable, CaseIterable {
 enum LineStyle: String, Codable, CaseIterable {
     case curved
     case orthogonal
+    case straight
 
     var displayName: String {
         switch self {
         case .curved: "Curved"
         case .orthogonal: "Rounded Orthogonal"
+        case .straight: "Straight"
         }
     }
 }

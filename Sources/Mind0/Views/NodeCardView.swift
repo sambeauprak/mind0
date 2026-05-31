@@ -347,7 +347,7 @@ struct NodeContextMenu: View {
     }
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading) {
             Button("Add Child Node") { appState.addChild(to: nodeID) }
                 .keyboardShortcut("n")
 
@@ -367,6 +367,29 @@ struct NodeContextMenu: View {
             Button("Add Image...") { addImage() }
             if node?.imageData != nil || node?.imagePath != nil {
                 Button("Remove Image") { appState.removeNodeImage(nodeID) }
+            }
+
+            Divider()
+
+            Menu("Children Layout") {
+                Button("Default (Global)") {
+                    appState.setChildrenLayout(nodeID, layout: nil)
+                }
+                Button("Radial") {
+                    appState.setChildrenLayout(nodeID, layout: .radial)
+                }
+                Button("Tree (Left)") {
+                    appState.setChildrenLayout(nodeID, layout: .tree)
+                }
+                Button("Tree (Right)") {
+                    appState.setChildrenLayout(nodeID, layout: .treeRight)
+                }
+                Button("Tree (Up)") {
+                    appState.setChildrenLayout(nodeID, layout: .treeUp)
+                }
+                Button("Tree (Down)") {
+                    appState.setChildrenLayout(nodeID, layout: .treeDown)
+                }
             }
 
             Divider()

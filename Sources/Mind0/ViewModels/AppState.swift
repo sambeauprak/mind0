@@ -45,6 +45,10 @@ class AppState: ObservableObject {
     private var redoStack: [MindDocument] = []
     private let maxUndoCount = 20
 
+    // ── Drag collision/repulsion state ─────────────────────────────
+    private(set) var dragSubtreePositions: [UUID: CGPoint] = [:]
+    let nodeCardSize = CGSize(width: 180, height: 80)
+
     var currentDocument: MindDocument? {
         get { documents.first(where: { $0.id == currentDocumentID }) }
         set {
@@ -301,6 +305,87 @@ class AppState: ObservableObject {
         currentDocument = doc
     }
 
+    /// Returns all descendant IDs of a node (recursive).
+    private func allDescendants(of nodeID: UUID, nodes: [UUID: MindNode]) -> Set<UUID> {
+        var result = Set<UUID>()
+        guard let node = nodes[nodeID] else { return result }
+        for childID in node.childrenIDs {
+            result.insert(childID)
+            result.formUnion(allDescendants(of: childID, nodes: nodes))
+        }
+        return result
+    }
+
+    /// Snapshot the entire subtree's positions at drag start.
+    func beginDragSubtree(_ nodeID: UUID) {
+        guard let doc = currentDocument else { return }
+        dragSubtreePositions = [:]
+        let subtree = allDescendants(of: nodeID, nodes: doc.nodes)
+        for id in subtree {
+            dragSubtreePositions[id] = doc.nodes[id]?.position
+        }
+        dragSubtreePositions[nodeID] = doc.nodes[nodeID]?.position
+    }
+
+    /// Drag `nodeID` to `newPos`, moving the whole subtree, repelling colliders.
+    func dragNode(_ nodeID: UUID, to newPos: CGPoint) {
+        guard var doc = currentDocument else { return }
+        guard let startPos = dragSubtreePositions[nodeID] else { return }
+
+        let delta = CGPoint(x: newPos.x - startPos.x, y: newPos.y - startPos.y)
+
+        // 1. Move entire subtree by delta
+        for (id, pos) in dragSubtreePositions {
+            doc.nodes[id]?.position = CGPoint(x: pos.x + delta.x, y: pos.y + delta.y)
+        }
+
+        // 2. Check collisions between dragged node and all non-subtree nodes
+        let draggedRect = CGRect(
+            x: newPos.x - nodeCardSize.width / 2,
+            y: newPos.y - nodeCardSize.height / 2,
+            width: nodeCardSize.width,
+            height: nodeCardSize.height
+        )
+        let subtreeSet = Set(dragSubtreePositions.keys)
+
+        for (id, node) in doc.nodes where !subtreeSet.contains(id) {
+            let otherRect = CGRect(
+                x: node.position.x - nodeCardSize.width / 2,
+                y: node.position.y - nodeCardSize.height / 2,
+                width: nodeCardSize.width,
+                height: nodeCardSize.height
+            )
+            if let push = repulsion(fixedRect: draggedRect, otherRect: otherRect) {
+                doc.nodes[id]?.position = CGPoint(
+                    x: node.position.x + push.width,
+                    y: node.position.y + push.height
+                )
+            }
+        }
+
+        currentDocument = doc
+    }
+
+    /// Returns the minimum displacement to push `otherRect` out of `fixedRect`,
+    /// along the axis of least penetration, away from `fixedRect`'s center.
+    private func repulsion(fixedRect: CGRect, otherRect: CGRect) -> CGSize? {
+        guard fixedRect.intersects(otherRect) else { return nil }
+
+        let overlapX = min(fixedRect.maxX, otherRect.maxX) - max(fixedRect.minX, otherRect.minX)
+        let overlapY = min(fixedRect.maxY, otherRect.maxY) - max(fixedRect.minY, otherRect.minY)
+
+        let fixedCenter = CGPoint(x: fixedRect.midX, y: fixedRect.midY)
+        let otherCenter = CGPoint(x: otherRect.midX, y: otherRect.midY)
+
+        if overlapX < overlapY {
+            let sign: CGFloat = otherCenter.x >= fixedCenter.x ? 1 : -1
+            return CGSize(width: overlapX * sign, height: 0)
+        } else {
+            let sign: CGFloat = otherCenter.y >= fixedCenter.y ? 1 : -1
+            return CGSize(width: 0, height: overlapY * sign)
+        }
+    }
+
     func updateNodeColor(_ nodeID: UUID, color: String) {
         guard var doc = currentDocument else { return }
         saveUndoState()
@@ -360,7 +445,13 @@ class AppState: ObservableObject {
         case .radial:
             engine.applyRadialLayout(to: &doc, showAll: childrenShowAll)
         case .tree:
-            engine.applyTreeLayout(to: &doc, showAll: childrenShowAll)
+            engine.applyTreeLayout(to: &doc, direction: .tree, showAll: childrenShowAll)
+        case .treeRight:
+            engine.applyTreeLayout(to: &doc, direction: .treeRight, showAll: childrenShowAll)
+        case .treeUp:
+            engine.applyTreeLayout(to: &doc, direction: .treeUp, showAll: childrenShowAll)
+        case .treeDown:
+            engine.applyTreeLayout(to: &doc, direction: .treeDown, showAll: childrenShowAll)
         }
         currentDocument = doc
         saveCurrentDocument()
@@ -370,6 +461,14 @@ class AppState: ObservableObject {
         guard var doc = currentDocument else { return }
         saveUndoState()
         doc.layoutType = type
+        currentDocument = doc
+        applyLayout()
+    }
+
+    func setChildrenLayout(_ nodeID: UUID, layout: LayoutType?) {
+        guard var doc = currentDocument else { return }
+        saveUndoState()
+        doc.nodes[nodeID]?.childrenLayout = layout
         currentDocument = doc
         applyLayout()
     }

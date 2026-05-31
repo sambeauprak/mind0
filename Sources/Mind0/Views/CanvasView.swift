@@ -58,8 +58,8 @@ struct CanvasView: View {
                 NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
                     let scaleBefore = appState.canvasScale
                     if event.modifierFlags.contains(.command) {
-                        let delta = Float(event.deltaY) * 0.001
-                        appState.canvasScale = max(0.1, min(5.0, appState.canvasScale + CGFloat(delta)))
+                        let factor = 1 + CGFloat(event.deltaY) * 0.02
+                        appState.canvasScale = max(0.1, min(5.0, appState.canvasScale * factor))
                         let mouseInWindow = event.locationInWindow
                         let viewPoint = CGPoint(
                             x: (mouseInWindow.x - appState.canvasOffset.width) / scaleBefore,
@@ -385,6 +385,8 @@ struct ConnectionPath: View {
                 drawCurved(path: &path)
             case .orthogonal:
                 drawOrthogonal(path: &path)
+            case .straight:
+                drawStraight(path: &path)
             }
         }
         .stroke(color, style: SwiftUI.StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
@@ -411,6 +413,11 @@ struct ConnectionPath: View {
         path.move(to: from)
         path.addLine(to: CGPoint(x: midX, y: from.y))
         path.addArc(tangent1End: CGPoint(x: midX, y: to.y), tangent2End: to, radius: max(r, 1))
+        path.addLine(to: to)
+    }
+
+    private func drawStraight(path: inout Path) {
+        path.move(to: from)
         path.addLine(to: to)
     }
 }
