@@ -19,6 +19,7 @@ struct SidebarView: View {
                         .help("New Document")
                     }
                     .padding(.horizontal, 8)
+                    .padding(.trailing, 24)
 
                     ForEach(appState.documents) { doc in
                     HStack(spacing: 8) {
