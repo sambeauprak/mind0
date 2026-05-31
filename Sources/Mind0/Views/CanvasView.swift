@@ -376,48 +376,51 @@ struct ConnectionPath: View {
     let to: CGPoint
     let color: Color
     let lineStyle: LineStyle
-    private let cornerRadius: CGFloat = 12
+    private let cornerRadius: CGFloat = 20
 
     var body: some View {
         Path { path in
-            switch lineStyle {
-            case .curved:
-                drawCurved(path: &path)
-            case .orthogonal:
-                drawOrthogonal(path: &path)
-            case .straight:
-                drawStraight(path: &path)
-            }
+            drawOrthogonal(path: &path)
         }
         .stroke(color, style: SwiftUI.StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
     }
 
-    private func drawCurved(path: inout Path) {
-        let dx = to.x - from.x
-        let dy = to.y - from.y
-        let controlOffsetX = abs(dx) * 0.5
-        let controlOffsetY = abs(dy) * 0.3
-
-        path.move(to: from)
-        path.addCurve(
-            to: to,
-            control1: CGPoint(x: from.x + controlOffsetX, y: from.y + controlOffsetY),
-            control2: CGPoint(x: to.x - controlOffsetX, y: to.y - controlOffsetY)
-        )
-    }
-
     private func drawOrthogonal(path: inout Path) {
         let midX = (from.x + to.x) / 2
-        let r = min(cornerRadius, abs(from.y - to.y) / 2, abs(midX - from.x))
+        let hDist = abs(midX - from.x)
+        let vDist = abs(to.y - from.y)
+
+        guard vDist > 1 else {
+            path.move(to: from)
+            path.addLine(to: to)
+            return
+        }
+
+        let r = min(cornerRadius, hDist, vDist / 2)
 
         path.move(to: from)
-        path.addLine(to: CGPoint(x: midX, y: from.y))
-        path.addArc(tangent1End: CGPoint(x: midX, y: to.y), tangent2End: to, radius: max(r, 1))
-        path.addLine(to: to)
-    }
 
-    private func drawStraight(path: inout Path) {
-        path.move(to: from)
+        if to.x >= from.x {
+            path.addLine(to: CGPoint(x: midX - r, y: from.y))
+            let dy: CGFloat = to.y >= from.y ? 1 : -1
+            path.addArc(tangent1End: CGPoint(x: midX, y: from.y),
+                         tangent2End: CGPoint(x: midX, y: from.y + dy * r),
+                         radius: r)
+            path.addLine(to: CGPoint(x: midX, y: to.y - dy * r))
+            path.addArc(tangent1End: CGPoint(x: midX, y: to.y),
+                         tangent2End: to,
+                         radius: r)
+        } else {
+            path.addLine(to: CGPoint(x: midX + r, y: from.y))
+            let dy: CGFloat = to.y >= from.y ? 1 : -1
+            path.addArc(tangent1End: CGPoint(x: midX, y: from.y),
+                         tangent2End: CGPoint(x: midX, y: from.y + dy * r),
+                         radius: r)
+            path.addLine(to: CGPoint(x: midX, y: to.y - dy * r))
+            path.addArc(tangent1End: CGPoint(x: midX, y: to.y),
+                         tangent2End: to,
+                         radius: r)
+        }
         path.addLine(to: to)
     }
 }
