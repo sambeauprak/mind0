@@ -7,7 +7,7 @@ A native macOS mindmapping application built with **SwiftUI**. Create, arrange, 
 
 ## Screenshots
 
-![Mind0 main canvas](screenshots/main.png)
+![Mind0 main canvas](screenshots/app.png)
 
 ---
 
