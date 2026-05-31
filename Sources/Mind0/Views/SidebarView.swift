@@ -5,23 +5,22 @@ struct SidebarView: View {
     @State private var docToDelete: MindDocument?
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        sectionHeader("Documents")
-                        Spacer()
-                        Button(action: { appState.showNewDocAlert = true }) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .buttonStyle(.plain)
-                        .help("New Document")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    sectionHeader("Documents")
+                    Spacer()
+                    Button(action: { appState.showNewDocAlert = true }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.trailing, 24)
+                    .buttonStyle(.plain)
+                    .help("New Document")
+                }
+                .padding(.horizontal, 8)
+                .padding(.trailing, 24)
 
-                    ForEach(appState.documents) { doc in
+                ForEach(appState.documents) { doc in
                     HStack(spacing: 8) {
                         Image(systemName: "doc.text")
                             .foregroundColor(.accentColor)
@@ -70,19 +69,19 @@ struct SidebarView: View {
             }
             .padding(.vertical, 8)
         }
-
-        Button(action: { appState.sidebarVisible.toggle() }) {
-            Image(systemName: "sidebar.left")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.secondary)
-                .padding(6)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+        .overlay(alignment: .topTrailing) {
+            Button(action: { appState.sidebarVisible.toggle() }) {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .padding(6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Close Sidebar")
+            .padding(4)
         }
-        .buttonStyle(.plain)
-        .help("Close Sidebar")
-        .padding(4)
-    }
         .confirmationDialog(
             "Delete Document",
             isPresented: Binding(

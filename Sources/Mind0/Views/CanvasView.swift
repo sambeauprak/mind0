@@ -71,6 +71,9 @@ struct CanvasView: View {
                         )
                         return nil
                     }
+                    if appState.sidebarVisible && event.locationInWindow.x < 360 {
+                        return event
+                    }
                     appState.canvasOffset = CGSize(
                         width: appState.canvasOffset.width + event.deltaX,
                         height: appState.canvasOffset.height - event.deltaY
